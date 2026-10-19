@@ -20,7 +20,7 @@ const submit = () => form.post('/login')
                 </p>
                 <img src="/images/students2.jpg" alt="Logo Bina Media Informatika" class="w-[550px] h-[450px] object-contain mt-0"/>
             </div>
-            <p class="text-xs text-blue-300">Program Pengabdian Kepada Masyarakat - Universitas Pamulang</p>
+            <p class="text-xs text-blue-300">Program Pengabdian Kepada Masyarakat - Teknik Informatika | Universitas Pamulang</p>
         </div>
 
         <div class="flex items-center justify-center px-6 py-12 bg-white">
