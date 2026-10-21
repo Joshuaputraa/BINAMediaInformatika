@@ -48,7 +48,7 @@ const crud = useCrud('/bk-teachers', { nip: '', name: '', username: '', password
 
         <Modal v-if="crud.show.value" :title="crud.editId.value ? 'Edit guru BK' : 'Tambah guru BK'" @close="crud.close">
             <form @submit.prevent="crud.submit" class="space-y-4">
-                <FormField label="NIP" v-model="crud.form.nip" :error="crud.form.errors.nip" />
+                <FormField label="NIP" required numeric v-model="crud.form.nip" :error="crud.form.errors.nip" />
                 <FormField label="Nama guru BK" v-model="crud.form.name" :error="crud.form.errors.name" />
                 <FormField label="Username" v-model="crud.form.username" :error="crud.form.errors.username" />
                 <FormField :label="crud.editId.value ? 'Password baru (kosongkan jika tidak diubah)' : 'Password'"

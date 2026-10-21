@@ -13,6 +13,7 @@ trait HasIndonesianValidation
             'max' => ':attribute terlalu panjang.',
             'confirmed' => 'Konfirmasi :attribute tidak cocok.',
             'alpha_dash' => ':attribute hanya boleh berisi huruf, angka, strip, dan garis bawah.',
+            'digits_between' => ':attribute hanya boleh berisi angka (maksimal :max digit).',
             'current_password' => 'Password saat ini salah.',
         ];
     }
@@ -20,6 +21,7 @@ trait HasIndonesianValidation
     protected function validationAttributes(): array
     {
         return [
+            'nip' => 'NIP',
             'name' => 'Nama',
             'username' => 'Username',
             'password' => 'Password',

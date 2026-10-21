@@ -46,7 +46,7 @@ const crud = useCrud('/teachers', { nip: '', name: '' })
 
         <Modal v-if="crud.show.value" :title="crud.editId.value ? 'Edit wali kelas' : 'Tambah wali kelas'" @close="crud.close">
             <form @submit.prevent="crud.submit" class="space-y-4">
-                <FormField label="NIP" v-model="crud.form.nip" :error="crud.form.errors.nip" />
+                <FormField label="NIP" required numeric v-model="crud.form.nip" :error="crud.form.errors.nip" />
                 <FormField label="Nama wali kelas" v-model="crud.form.name" :error="crud.form.errors.name" />
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" @click="crud.close" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Batal</button>

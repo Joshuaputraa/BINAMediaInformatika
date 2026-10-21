@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasIndonesianValidation;
 use App\Models\Handling;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -11,6 +12,8 @@ use Inertia\Inertia;
 
 class BkTeacherController extends Controller
 {
+    use HasIndonesianValidation;
+
     public function index()
     {
         return Inertia::render('BkTeachers/Index', [
@@ -21,11 +24,11 @@ class BkTeacherController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'nip' => 'required|unique:users,nip',
-            'name' => 'required|string|max:100',
-            'username' => 'required|alpha_dash|unique:users,username',
-            'password' => 'required|min:6',
-        ]);
+            'nip' => ['required', 'digits_between:1,30', 'unique:users,nip'],
+            'name' => ['required', 'string', 'max:100'],
+            'username' => ['required', 'alpha_dash', 'max:50', 'unique:users,username'],
+            'password' => ['required', 'string', 'min:6'],
+        ], $this->validationMessages(), $this->validationAttributes());
 
         User::create([
             ...$data,
@@ -41,11 +44,11 @@ class BkTeacherController extends Controller
         abort_unless($bk->role === 'bk', 404);
 
         $data = $request->validate([
-            'nip' => ['required', Rule::unique('users', 'nip')->ignore($bk->id)],
-            'name' => 'required|string|max:100',
-            'username' => ['required', 'alpha_dash', Rule::unique('users', 'username')->ignore($bk->id)],
-            'password' => 'nullable|min:6',
-        ]);
+            'nip' => ['required', 'digits_between:1,30', Rule::unique('users', 'nip')->ignore($bk->id)],
+            'name' => ['required', 'string', 'max:100'],
+            'username' => ['required', 'alpha_dash', 'max:50', Rule::unique('users', 'username')->ignore($bk->id)],
+            'password' => ['nullable', 'string', 'min:6'],
+        ], $this->validationMessages(), $this->validationAttributes());
 
         if (empty($data['password'])) {
             unset($data['password']);
