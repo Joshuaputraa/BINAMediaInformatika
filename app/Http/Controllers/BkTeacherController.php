@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use App\Models\Grade;
 
 class BkTeacherController extends Controller
 {
@@ -68,6 +69,12 @@ class BkTeacherController extends Controller
         if (Handling::where('user_id', $bk->id)->exists()) {
             return back()->withErrors([
                 'delete' => 'Guru BK ini sudah memiliki riwayat penanganan sehingga tidak bisa dihapus.',
+            ]);
+        }
+
+        if (Grade::where('bk_user_id', $bk->id)->exists()) {
+            return back()->withErrors([
+                'delete' => 'Guru BK ini masih menjadi guru BK sebuah kelas. Ganti guru BK kelas tersebut terlebih dahulu.',
             ]);
         }
 

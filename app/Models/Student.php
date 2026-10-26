@@ -10,14 +10,14 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id'];
+    protected $fillable = ['nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id', 'grade_id', 'major_id'];
 
     protected $casts = [
         'status' => StudentStatus::class,
         'bk_handled_at' => 'datetime',
     ];
 
-    protected $appends = ['bk_handled', 'wali_handled'];
+    protected $appends = ['bk_handled', 'wali_handled', 'sp_level'];
 
     public function handlings()
     {
@@ -90,6 +90,16 @@ class Student extends Model
         return $this->belongsTo(HomeroomTeacher::class, 'homeroom_teacher_id');
     }
 
+    public function grade()
+    {
+        return $this->belongsTo(Grade::class);
+    }
+
+    public function major()
+    {
+        return $this->belongsTo(Major::class);
+    }
+
     /** Dikirim ke frontend sebagai `wali_handled` (true/false). */
     public function getWaliHandledAttribute(): bool
     {
@@ -105,5 +115,26 @@ class Student extends Model
         return $this->handlings()
             ->where('type', StudentStatus::WaliKelas->value)
             ->exists();
+    }
+
+    /** Dikirim ke frontend sebagai `sp_level` (0 = belum pernah SP). */
+    public function getSpLevelAttribute(): int
+    {
+        return $this->spLevel();
+    }
+
+    /** Level SP tertinggi yang pernah diberikan (0 sampai 3). */
+    public function spLevel(): int
+    {
+        $types = $this->relationLoaded('handlings')
+            ? $this->handlings->map(fn ($h) => $h->type->value)
+            : $this->handlings()->get(['type'])->map(fn ($h) => $h->type->value);
+
+        return $types->map(fn ($t) => match ($t) {
+            'sp1' => 1,
+            'sp2' => 2,
+            'sp3' => 3,
+            default => 0,
+        })->max() ?? 0;
     }
 }

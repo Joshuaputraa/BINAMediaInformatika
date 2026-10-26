@@ -15,6 +15,7 @@ trait HasIndonesianValidation
             'alpha_dash' => ':attribute hanya boleh berisi huruf, angka, strip, dan garis bawah.',
             'digits_between' => ':attribute hanya boleh berisi angka (maksimal :max digit).',
             'current_password' => 'Password saat ini salah.',
+            'exists' => ':attribute tidak valid.',
         ];
     }
 
@@ -26,6 +27,7 @@ trait HasIndonesianValidation
             'username' => 'Username',
             'password' => 'Password',
             'current_password' => 'Password saat ini',
+            'bk_user_id' => 'Guru BK',
         ];
     }
 }

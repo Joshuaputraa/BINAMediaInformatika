@@ -9,6 +9,10 @@ use App\Http\Controllers\BkTeacherController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\KesiswaanUserController;
+use App\Http\Controllers\GroupController;
+use App\Http\Controllers\GradeController;
+use App\Http\Controllers\MajorController;
+use App\Http\Controllers\BulkUpdateController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
@@ -51,5 +55,21 @@ Route::middleware('auth')->group(function () {
         Route::post('/kesiswaan-users', [KesiswaanUserController::class, 'store']);
         Route::put('/kesiswaan-users/{kesiswaan}', [KesiswaanUserController::class, 'update']);
         Route::delete('/kesiswaan-users/{kesiswaan}', [KesiswaanUserController::class, 'destroy']);
+
+        Route::get('/groups', [GroupController::class, 'index']);
+
+        Route::post('/grades', [GradeController::class, 'store']);
+        Route::put('/grades/{grade}', [GradeController::class, 'update']);
+        Route::delete('/grades/{grade}', [GradeController::class, 'destroy']);
+        Route::get('/grades/{grade}/students', [GradeController::class, 'students']);
+
+        Route::post('/majors', [MajorController::class, 'store']);
+        Route::put('/majors/{major}', [MajorController::class, 'update']);
+        Route::delete('/majors/{major}', [MajorController::class, 'destroy']);
+        Route::get('/majors/{major}/students', [MajorController::class, 'students']);
+
+        Route::get('/bulk-update', [BulkUpdateController::class, 'index']);
+        Route::get('/bulk-update/template', [BulkUpdateController::class, 'template']);
+        Route::post('/bulk-update', [BulkUpdateController::class, 'import']);
     });
 });

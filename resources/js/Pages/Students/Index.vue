@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '../../Layouts/AppLayout.vue'
 import PageHeader from '../../Components/PageHeader.vue'
@@ -7,13 +7,21 @@ import Modal from '../../Components/Modal.vue'
 import ConfirmModal from '../../Components/ConfirmModal.vue'
 import ActionMenu from '../../Components/ActionMenu.vue'
 import FormField from '../../Components/FormField.vue'
+import SearchableSelect from '../../Components/SearchableSelect.vue'
 import StatusBadge from '../../Components/StatusBadge.vue'
 import HandlingModal from '../../Components/HandlingModal.vue'
 import { useCrud } from '../../composables/useCrud'
 import { keterangan } from '../../status'
-import SearchableSelect from '../../Components/SearchableSelect.vue'
 
-const props = defineProps({ students: Object, teachers: Array, bks: Array, filters: Object })
+const props = defineProps({
+    students: Object,
+    teachers: Array,
+    bks: Array,
+    grades: Array,
+    majors: Array,
+    nisDigits: Number,
+    filters: Object,
+})
 const role = usePage().props.auth.user.role
 
 const search = ref(props.filters.search ?? '')
@@ -25,10 +33,15 @@ watch(search, (v) => {
     }, 300)
 })
 
-const crud = useCrud('/students', { nis: '', name: '', homeroom_teacher_id: '' })
-const teacherOptions = computed(() =>
-    props.teachers.map((t) => ({ value: t.id, label: `${t.name} (${t.nip})` }))
-)
+const crud = useCrud('/students', { nis: '', name: '', grade_id: '', major_id: '', homeroom_teacher_id: '' })
+
+const teacherOptions = computed(() => props.teachers.map((t) => ({ value: t.id, label: `${t.name} (${t.nip})` })))
+const gradeOptions = computed(() => props.grades.map((g) => ({ value: g.id, label: g.name })))
+const majorOptions = computed(() => props.majors.map((m) => ({ value: m.id, label: m.name })))
+const gradeBk = computed(() => props.grades.find((g) => g.id === crud.form.grade_id)?.bk?.name)
+
+const kelas = (s) => [s.grade?.name, s.major?.name].filter(Boolean).join(' ') || '-'
+
 const selected = ref(null)
 </script>
 
@@ -53,6 +66,7 @@ const selected = ref(null)
                     <tr class="text-left text-xs uppercase text-gray-500 bg-gray-50 border-b border-gray-200">
                         <th class="px-4 py-2 font-medium">NIS</th>
                         <th class="px-4 py-2 font-medium">Nama</th>
+                        <th class="px-4 py-2 font-medium">Kelas</th>
                         <th class="px-4 py-2 font-medium">Wali kelas</th>
                         <th class="px-4 py-2 font-medium">Status</th>
                         <th class="px-4 py-2 font-medium">Keterangan</th>
@@ -65,6 +79,7 @@ const selected = ref(null)
                         <td class="px-4 py-3">
                             <button @click="selected = s" class="text-blue-700 hover:underline text-left">{{ s.name }}</button>
                         </td>
+                        <td class="px-4 py-3 whitespace-nowrap">{{ kelas(s) }}</td>
                         <td class="px-4 py-3">{{ s.homeroom_teacher?.name ?? '-' }}</td>
                         <td class="px-4 py-3"><StatusBadge :status="s.status" /></td>
                         <td class="px-4 py-3 text-gray-500">{{ keterangan(s) }}</td>
@@ -73,7 +88,7 @@ const selected = ref(null)
                         </td>
                     </tr>
                     <tr v-if="!students.data.length">
-                        <td colspan="6" class="px-4 py-3 text-gray-400">Tidak ada data.</td>
+                        <td colspan="7" class="px-4 py-3 text-gray-400">Tidak ada data.</td>
                     </tr>
                 </tbody>
             </table>
@@ -90,11 +105,27 @@ const selected = ref(null)
 
         <Modal v-if="crud.show.value" :title="crud.editId.value ? 'Edit siswa' : 'Tambah siswa'" @close="crud.close">
             <form @submit.prevent="crud.submit" class="space-y-4">
-                <FormField label="NIS" required numeric v-model="crud.form.nis" :error="crud.form.errors.nis" />
+                <FormField label="NIS" required numeric :placeholder="`${nisDigits} digit angka`"
+                    v-model="crud.form.nis" :error="crud.form.errors.nis" />
                 <FormField label="Nama siswa" required v-model="crud.form.name" :error="crud.form.errors.name" />
-                <SearchableSelect label="Wali kelas" required placeholder="Pilih wali kelas"
-                    :options="teacherOptions" v-model="crud.form.homeroom_teacher_id"
-                    :error="crud.form.errors.homeroom_teacher_id" />
+
+                <div class="grid grid-cols-2 gap-4">
+                    <SearchableSelect label="Kelas" required placeholder="Pilih kelas" :options="gradeOptions"
+                        v-model="crud.form.grade_id" :error="crud.form.errors.grade_id" />
+                    <SearchableSelect label="Jurusan" required placeholder="Pilih jurusan" :options="majorOptions"
+                        v-model="crud.form.major_id" :error="crud.form.errors.major_id" />
+                </div>
+
+                <SearchableSelect label="Wali kelas" required placeholder="Pilih wali kelas" :options="teacherOptions"
+                    v-model="crud.form.homeroom_teacher_id" :error="crud.form.errors.homeroom_teacher_id" />
+
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Guru BK</label>
+                    <div class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-500">
+                        {{ gradeBk ?? 'Mengikuti kelas yang dipilih' }}
+                    </div>
+                </div>
+
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" @click="crud.close" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Batal</button>
                     <button type="submit" :disabled="crud.form.processing"

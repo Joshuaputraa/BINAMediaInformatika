@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Enums\StudentStatus;
 
 class DashboardController extends Controller
 {
@@ -43,10 +44,11 @@ class DashboardController extends Controller
 
         if ($user->role === 'bk') {
             $mine = Student::with($relations)
-                ->where('bk_user_id', $user->id)
-                ->orderBy('name')
-                ->get()
-                ->map($mark);
+            ->where('bk_user_id', $user->id)
+            ->whereHas('handlings', fn ($q) => $q->where('type', StudentStatus::Bk->value))
+            ->orderBy('name')
+            ->get()
+            ->map($mark);
 
             $data['referrals'] = $mine->filter(fn ($s) => $s->can_handle)->values();
             $data['handled'] = $mine->reject(fn ($s) => $s->can_handle)->values();

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
-import { LayoutDashboard, GraduationCap, Users, UserCheck, FileText, LogOut, Menu, Settings } from 'lucide-vue-next'
+import { LayoutDashboard, GraduationCap, Users, UserCheck, FileText, LogOut, Menu, Settings, Layers, FileSpreadsheet } from 'lucide-vue-next'
 import ConfirmModal from '../Components/ConfirmModal.vue'
 
 const page = usePage()
@@ -14,8 +14,10 @@ const menus = computed(() => [
     { href: '/students', label: 'Siswa', icon: GraduationCap },
     ...(user.value.role === 'kesiswaan'
         ? [
+              { href: '/groups', label: 'Kelas & Jurusan', icon: Layers },
               { href: '/teachers', label: 'Wali Kelas', icon: Users },
               { href: '/bk-teachers', label: 'Guru BK', icon: UserCheck },
+              { href: '/bulk-update', label: 'Update Massal', icon: FileSpreadsheet },
           ]
         : []),
     { href: '/reports', label: 'Laporan', icon: FileText },

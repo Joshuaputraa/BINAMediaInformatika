@@ -15,10 +15,13 @@ class StudentRequest extends FormRequest
     public function rules(): array
     {
         $student = $this->route('student');
+        $digits = config('school.nis_digits');
 
         return [
-            'nis' => ['required', 'digits_between:1,30', Rule::unique('students', 'nis')->ignore($student?->id)],
+            'nis' => ['required', "digits:$digits", Rule::unique('students', 'nis')->ignore($student?->id)],
             'name' => ['required', 'string', 'max:100'],
+            'grade_id' => ['required', 'exists:grades,id'],
+            'major_id' => ['required', 'exists:majors,id'],
             'homeroom_teacher_id' => ['required', 'exists:homeroom_teachers,id'],
         ];
     }
@@ -28,6 +31,8 @@ class StudentRequest extends FormRequest
         return [
             'nis' => 'NIS',
             'name' => 'Nama siswa',
+            'grade_id' => 'Kelas',
+            'major_id' => 'Jurusan',
             'homeroom_teacher_id' => 'Wali kelas',
         ];
     }
@@ -39,7 +44,7 @@ class StudentRequest extends FormRequest
             'unique' => ':attribute sudah terdaftar.',
             'exists' => ':attribute tidak valid.',
             'max' => ':attribute terlalu panjang.',
-            'digits_between' => ':attribute hanya boleh berisi angka (maksimal :max digit).',
+            'digits' => ':attribute harus berisi :digits digit angka.',
         ];
     }
 }

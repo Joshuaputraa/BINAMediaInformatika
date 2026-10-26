@@ -7,7 +7,7 @@ import { ACTIONS } from '../status'
 const props = defineProps({
     student: Object,
     teachers: { type: Array, default: () => [] },
-    bks: { type: Array, default: () => [] },
+    bks: { type: Array, default: () => [] }, // tidak dipakai lagi (guru BK mengikuti kelas), dipertahankan agar halaman lain tidak perlu diubah
     role: String,
 })
 const emit = defineEmits(['close'])
@@ -16,6 +16,8 @@ const isBk = computed(() => props.role === 'bk')
 const bkLocked = computed(() => !!props.student.bk_handled)
 const waliLocked = computed(() => !!props.student.wali_handled)
 const noWali = computed(() => !props.student.homeroom_teacher_id)
+const noBk = computed(() => !props.student.bk_user_id)
+const spLevel = computed(() => props.student.sp_level ?? 0)
 
 const tab = ref(props.student.can_handle ? 'form' : 'history')
 const tabs = computed(() => [
@@ -26,15 +28,18 @@ const tabs = computed(() => [
 const form = useForm({
     type: isBk.value ? 'bk' : '',
     homeroom_teacher_id: '',
-    bk_user_id: '',
     notes: '',
 })
 
-// wali kelas selalu mengikuti data siswa; guru BK dikosongkan kalau bukan tindakan BK
+// wali kelas selalu mengikuti data siswa
 watch(() => form.type, (t) => {
     form.homeroom_teacher_id = t === 'wali_kelas' ? (props.student.homeroom_teacher_id ?? '') : ''
-    if (t !== 'bk') form.bk_user_id = ''
 })
+
+const spNote = (n) => {
+    if (n > spLevel.value) return ''
+    return props.student.handlings.some((h) => h.type === `sp${n}`) ? 'Sudah diberikan' : 'Terlewati'
+}
 
 // "note" terisi = pilihan terkunci, isinya alasan singkat
 const groups = computed(() => [
@@ -47,16 +52,20 @@ const groups = computed(() => [
                 label: 'Wali kelas',
                 note: waliLocked.value ? 'Sudah ditangani' : noWali.value ? 'Belum ada wali kelas' : '',
             },
-            { value: 'bk', label: 'Rujuk ke guru BK', note: bkLocked.value ? 'Sudah ditangani' : '' },
+            {
+                value: 'bk',
+                label: 'Rujuk ke guru BK',
+                note: bkLocked.value ? 'Sudah ditangani' : noBk.value ? 'Belum ada guru BK' : '',
+            },
         ],
     },
     {
         title: 'Sanksi',
         cols: 'grid-cols-4',
         items: [
-            { value: 'sp1', label: 'SP 1' },
-            { value: 'sp2', label: 'SP 2' },
-            { value: 'sp3', label: 'SP 3' },
+            { value: 'sp1', label: 'SP 1', note: spNote(1) },
+            { value: 'sp2', label: 'SP 2', note: spNote(2) },
+            { value: 'sp3', label: 'SP 3', note: spNote(3) },
             { value: 'dropout', label: 'Dropout' },
         ],
     },
@@ -85,8 +94,16 @@ const teacherName = computed(
 )
 
 const bkInfo = computed(() => {
-    if (!props.student.bk) return '-'
-    return `${props.student.bk.name} (${props.student.bk_handled ? 'sudah menangani' : 'rujukan'})`
+    const name = props.student.bk?.name
+    if (!name) return '-'
+    if (props.student.bk_handled) return `${name} (sudah menangani)`
+    if (props.student.status === 'bk') return `${name} (rujukan)`
+    return name
+})
+
+const classInfo = computed(() => {
+    const parts = [props.student.grade?.name, props.student.major?.name].filter(Boolean)
+    return parts.length ? parts.join(' ') : '-'
 })
 
 const dropout = computed(() =>
@@ -152,7 +169,11 @@ const field =
                 <button type="button" @click="emit('close')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
 
-            <dl class="px-6 py-3 grid grid-cols-2 gap-4 text-xs bg-gray-50 border-y border-gray-100">
+            <dl class="px-6 py-3 grid grid-cols-3 gap-4 text-xs bg-gray-50 border-y border-gray-100">
+                <div>
+                    <dt class="text-gray-500">Kelas</dt>
+                    <dd class="text-gray-900 mt-0.5">{{ classInfo }}</dd>
+                </div>
                 <div>
                     <dt class="text-gray-500">Wali kelas</dt>
                     <dd class="text-gray-900 mt-0.5">{{ teacherName }}</dd>
@@ -207,11 +228,10 @@ const field =
 
                         <div v-if="form.type === 'bk'">
                             <label class="block text-sm text-gray-600 mb-1">Guru BK</label>
-                            <select v-model="form.bk_user_id" :class="field">
-                                <option value="">Pilih guru BK</option>
-                                <option v-for="b in bks" :key="b.id" :value="b.id">{{ b.name }}</option>
+                            <select disabled :class="field" class="bg-gray-50 text-gray-500 cursor-not-allowed">
+                                <option>{{ student.bk?.name ?? 'Belum ditentukan' }}</option>
                             </select>
-                            <p v-if="form.errors.bk_user_id" class="text-xs text-red-600 mt-1">{{ form.errors.bk_user_id }}</p>
+                            <p class="text-xs text-gray-500 mt-1">Ditentukan dari kelas siswa.</p>
                         </div>
                     </template>
 
