@@ -17,11 +17,11 @@ const props = defineProps({
     students: Object,
     teachers: Array,
     bks: Array,
-    grades: Array,
-    majors: Array,
+    classrooms: Array,
     nisDigits: Number,
     filters: Object,
 })
+
 const role = usePage().props.auth.user.role
 
 const search = ref(props.filters.search ?? '')
@@ -33,12 +33,11 @@ watch(search, (v) => {
     }, 300)
 })
 
-const crud = useCrud('/students', { nis: '', name: '', grade_id: '', major_id: '', homeroom_teacher_id: '' })
+const crud = useCrud('/students', { nis: '', name: '', classroom_id: '', homeroom_teacher_id: '' })
 
 const teacherOptions = computed(() => props.teachers.map((t) => ({ value: t.id, label: `${t.name} (${t.nip})` })))
-const gradeOptions = computed(() => props.grades.map((g) => ({ value: g.id, label: g.name })))
-const majorOptions = computed(() => props.majors.map((m) => ({ value: m.id, label: m.name })))
-const gradeBk = computed(() => props.grades.find((g) => g.id === crud.form.grade_id)?.bk?.name)
+const classroomOptions = computed(() => props.classrooms.map((c) => ({ value: c.id, label: c.name })))
+const selectedClass = computed(() => props.classrooms.find((c) => c.id === crud.form.classroom_id))
 
 const kelas = (s) => [s.grade?.name, s.major?.name].filter(Boolean).join(' ') || '-'
 
@@ -79,7 +78,7 @@ const selected = ref(null)
                         <td class="px-4 py-3">
                             <button @click="selected = s" class="text-blue-700 hover:underline text-left">{{ s.name }}</button>
                         </td>
-                        <td class="px-4 py-3 whitespace-nowrap">{{ kelas(s) }}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">{{ s.classroom?.name ?? '-' }}</td>
                         <td class="px-4 py-3">{{ s.homeroom_teacher?.name ?? '-' }}</td>
                         <td class="px-4 py-3"><StatusBadge :status="s.status" /></td>
                         <td class="px-4 py-3 text-gray-500">{{ keterangan(s) }}</td>
@@ -109,22 +108,26 @@ const selected = ref(null)
                     v-model="crud.form.nis" :error="crud.form.errors.nis" />
                 <FormField label="Nama siswa" required v-model="crud.form.name" :error="crud.form.errors.name" />
 
+                <SearchableSelect label="Kelas" required placeholder="Pilih kelas" :options="classroomOptions"
+                    v-model="crud.form.classroom_id" :error="crud.form.errors.classroom_id" />
+
                 <div class="grid grid-cols-2 gap-4">
-                    <SearchableSelect label="Kelas" required placeholder="Pilih kelas" :options="gradeOptions"
-                        v-model="crud.form.grade_id" :error="crud.form.errors.grade_id" />
-                    <SearchableSelect label="Jurusan" required placeholder="Pilih jurusan" :options="majorOptions"
-                        v-model="crud.form.major_id" :error="crud.form.errors.major_id" />
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Jurusan</label>
+                        <div class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-500">
+                            {{ selectedClass?.major ?? 'Mengikuti kelas' }}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Guru BK</label>
+                        <div class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-500">
+                            {{ selectedClass?.bk ?? 'Mengikuti kelas' }}
+                        </div>
+                    </div>
                 </div>
 
                 <SearchableSelect label="Wali kelas" required placeholder="Pilih wali kelas" :options="teacherOptions"
                     v-model="crud.form.homeroom_teacher_id" :error="crud.form.errors.homeroom_teacher_id" />
-
-                <div>
-                    <label class="block text-sm text-gray-600 mb-1">Guru BK</label>
-                    <div class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-500">
-                        {{ gradeBk ?? 'Mengikuti kelas yang dipilih' }}
-                    </div>
-                </div>
 
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" @click="crud.close" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Batal</button>

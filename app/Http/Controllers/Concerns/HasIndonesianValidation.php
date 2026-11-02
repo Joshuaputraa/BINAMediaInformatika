@@ -9,13 +9,15 @@ trait HasIndonesianValidation
         return [
             'required' => ':attribute wajib diisi.',
             'unique' => ':attribute sudah dipakai.',
+            'exists' => ':attribute tidak valid.',
             'min' => ':attribute minimal :min karakter.',
             'max' => ':attribute terlalu panjang.',
+            'integer' => ':attribute harus berupa angka.',
+            'between' => ':attribute harus antara :min dan :max.',
             'confirmed' => 'Konfirmasi :attribute tidak cocok.',
             'alpha_dash' => ':attribute hanya boleh berisi huruf, angka, strip, dan garis bawah.',
             'digits_between' => ':attribute hanya boleh berisi angka (maksimal :max digit).',
             'current_password' => 'Password saat ini salah.',
-            'exists' => ':attribute tidak valid.',
         ];
     }
 
@@ -28,6 +30,9 @@ trait HasIndonesianValidation
             'password' => 'Password',
             'current_password' => 'Password saat ini',
             'bk_user_id' => 'Guru BK',
+            'grade_id' => 'Tingkat',
+            'major_id' => 'Jurusan',
+            'number' => 'Nomor kelas',
         ];
     }
 }

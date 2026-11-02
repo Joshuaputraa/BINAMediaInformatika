@@ -9,19 +9,31 @@ const user = computed(() => page.props.auth.user)
 const open = ref(false)
 const showLogout = ref(false)
 
-const menus = computed(() => [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/students', label: 'Siswa', icon: GraduationCap },
-    ...(user.value.role === 'kesiswaan'
-        ? [
-              { href: '/groups', label: 'Kelas & Jurusan', icon: Layers },
-              { href: '/teachers', label: 'Wali Kelas', icon: Users },
-              { href: '/bk-teachers', label: 'Guru BK', icon: UserCheck },
-              { href: '/bulk-update', label: 'Update Massal', icon: FileSpreadsheet },
-          ]
-        : []),
-    { href: '/reports', label: 'Laporan', icon: FileText },
-])
+const sections = computed(() => {
+    const dashboard = { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }
+    const students = { href: '/students', label: 'Data Siswa', icon: GraduationCap }
+    const reports = { href: '/reports', label: 'Laporan', icon: FileText }
+
+    if (user.value.role !== 'kesiswaan') {
+        return [{ title: 'Menu', items: [dashboard, students, reports] }]
+    }
+
+    return [
+        { title: 'Utama', items: [dashboard, reports] },
+        {
+            title: 'Siswa',
+            items: [students, { href: '/bulk-update', label: 'Update Massal', icon: FileSpreadsheet }],
+        },
+        {
+            title: 'Data Sekolah',
+            items: [
+                { href: '/groups', label: 'Kelas & Jurusan', icon: Layers },
+                { href: '/teachers', label: 'Wali Kelas', icon: Users },
+                { href: '/bk-teachers', label: 'Guru BK', icon: UserCheck },
+            ],
+        },
+    ]
+})
 
 const isActive = (href) => page.url.startsWith(href)
 const roleLabel = computed(() => (user.value.role === 'bk' ? 'Guru BK' : 'Kesiswaan'))
@@ -36,26 +48,26 @@ const logout = () => router.post('/logout')
             class="fixed inset-y-0 left-0 w-60 bg-blue-800 text-blue-100 flex flex-col z-30 transition-transform md:translate-x-0"
             :class="open ? 'translate-x-0' : '-translate-x-full'"
         >
-            <div class="h-16 px-5 flex items-center gap-3 border-b border-blue-700">
+            <div class="h-16 px-5 shrink-0 flex items-center gap-3 border-b border-blue-700">
                 <img src="/images/metiklogo.png" alt="Logo Bina Media Informatika" class="w-8 h-9 object-contain"/>
                 <span class="font-semibold text-white">BINA Media Informatika</span>
             </div>
 
-            <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
-                <Link
-                    v-for="m in menus"
-                    :key="m.href"
-                    :href="m.href"
-                    @click="open = false"
-                    class="flex items-center gap-3 px-3 py-2 rounded-md"
-                    :class="isActive(m.href) ? 'bg-white text-blue-800 font-medium' : 'hover:bg-blue-700'"
-                >
-                    <component :is="m.icon" class="w-4 h-4" />
-                    {{ m.label }}
-                </Link>
+            <nav class="flex-1 overflow-y-auto px-3 py-4 text-sm space-y-5">
+                <div v-for="s in sections" :key="s.title">
+                    <p class="px-3 mb-1.5 text-[11px] font-medium uppercase tracking-wider text-blue-300">{{ s.title }}</p>
+                    <div class="space-y-0.5">
+                        <Link v-for="m in s.items" :key="m.href" :href="m.href" @click="open = false"
+                            class="flex items-center gap-3 px-3 py-2 rounded-md"
+                            :class="isActive(m.href) ? 'bg-white text-blue-800 font-medium' : 'hover:bg-blue-700'">
+                            <component :is="m.icon" class="w-4 h-4 shrink-0" />
+                            <span class="truncate">{{ m.label }}</span>
+                        </Link>
+                    </div>
+                </div>
             </nav>
 
-            <div class="px-5 py-4 border-t border-blue-700 text-sm">
+            <div class="px-5 py-4 shrink-0 border-t border-blue-700 text-sm">
                 <div class="flex items-start justify-between gap-2 mb-3">
                     <div class="min-w-0">
                         <p class="text-white truncate">{{ user.name }}</p>

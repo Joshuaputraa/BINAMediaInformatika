@@ -17,7 +17,14 @@ class DashboardController extends Controller
     public function __invoke(Request $request)
     {
         $user = $request->user();
-        $relations = ['homeroomTeacher:id,name', 'bk:id,name', 'handlings.teacher:id,name', 'handlings.user:id,name,role'];
+        $relations = [
+            'classroom.grade:id,name',
+            'classroom.major:id,name',
+            'homeroomTeacher:id,name',
+            'bk:id,name',
+            'handlings.teacher:id,name',
+            'handlings.user:id,name,role',
+        ];
 
         // map() dipakai (bukan each) karena each() berhenti kalau callback mengembalikan false
         $mark = function ($s) use ($user) {

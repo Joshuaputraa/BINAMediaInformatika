@@ -2,10 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Grade;
+use App\Models\Classroom;
 use App\Models\HomeroomTeacher;
-use App\Models\Major;
-use App\Models\User;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -16,7 +14,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class StudentTemplateService
 {
-    public const HEADERS = ['NIS', 'Nama Siswa', 'Kelas', 'Jurusan', 'NIP Guru BK', 'NIP Wali Kelas'];
+    public const HEADERS = ['NIS', 'Nama Siswa', 'Kelas', 'Jurusan', 'Guru BK', 'NIP Wali Kelas'];
+
+    /** Kolom yang diisi manual (indeks dari 0). Jurusan dan Guru BK terisi otomatis oleh rumus. */
+    public const INPUT_COLUMNS = [0, 1, 2, 5];
 
     public const MAX_ROWS = 1500;
 
@@ -33,8 +34,8 @@ class StudentTemplateService
         $reference = $spreadsheet->createSheet();
         $reference->setTitle('Referensi');
 
-        [$gradeEnd, $majorEnd] = $this->fillReference($reference);
-        $this->fillTemplate($template, $gradeEnd, $majorEnd);
+        $classEnd = $this->fillReference($reference);
+        $this->fillTemplate($template, $classEnd);
         $this->fillGuide($guide);
 
         $spreadsheet->setActiveSheetIndex(0);
@@ -42,7 +43,7 @@ class StudentTemplateService
         return $spreadsheet;
     }
 
-    private function fillTemplate(Worksheet $s, int $gradeEnd, int $majorEnd): void
+    private function fillTemplate(Worksheet $s, int $classEnd): void
     {
         $digits = config('school.nis_digits');
         $last = self::MAX_ROWS + 1;
@@ -56,20 +57,23 @@ class StudentTemplateService
         $s->getRowDimension(1)->setRowHeight(24);
         $s->freezePane('A2');
 
-        foreach (['A' => 14, 'B' => 32, 'C' => 14, 'D' => 22, 'E' => 24, 'F' => 24] as $col => $width) {
+        foreach (['A' => 14, 'B' => 32, 'C' => 18, 'D' => 18, 'E' => 24, 'F' => 24] as $col => $width) {
             $s->getColumnDimension($col)->setWidth($width);
         }
 
-        // Semua kolom data berformat Teks supaya angka nol di depan dan NIP panjang tidak rusak
-        $s->getStyle("A2:F$last")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+        // Kolom isian berformat Teks (angka nol di depan dan NIP panjang tidak rusak)
+        $s->getStyle("A2:C$last")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+        $s->getStyle("F2:F$last")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
 
-        // Note (komentar) di setiap kolom
+        // Kolom otomatis diberi warna abu-abu
+        $s->getStyle("D2:E$last")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F3F4F6');
+
         $notes = [
             'A1' => "Masukkan {$digits} digit angka NIS.\nContoh: 2324001\nTanpa spasi, huruf, atau tanda baca.",
             'B1' => "Nama lengkap siswa.\nMaksimal 100 karakter.",
-            'C1' => "Pilih dari daftar (klik sel lalu panah).\nHarus sama dengan kelas di menu Kelas & Jurusan.",
-            'D1' => "Pilih dari daftar (klik sel lalu panah).\nHarus sama dengan jurusan di menu Kelas & Jurusan.",
-            'E1' => "NIP guru BK, angka saja.\nHarus guru BK dari kelas yang dipilih.\nLihat sheet Referensi.",
+            'C1' => "Pilih dari dropdown (klik sel lalu panah).\nContoh: X RPL 1\nKelas dibuat di menu Kelas & Jurusan.",
+            'D1' => "Terisi otomatis dari kelas.\nJangan diisi atau diubah.",
+            'E1' => "Terisi otomatis dari kelas.\nJangan diisi atau diubah.",
             'F1' => "NIP wali kelas, angka saja.\nLihat sheet Referensi.",
         ];
 
@@ -78,57 +82,54 @@ class StudentTemplateService
             $comment->setAuthor('Sistem');
             $comment->getText()->createTextRun($text);
             $comment->setWidth('260px');
-            $comment->setHeight('110px');
+            $comment->setHeight('100px');
         }
 
-        // Dropdown kelas dan jurusan dari sheet Referensi
-        $gradeRange = "Referensi!\$A\$2:\$A\${$gradeEnd}";
-        $majorRange = "Referensi!\$E\$2:\$E\${$majorEnd}";
+        $lookup = "Referensi!\$A\$2:\$D\${$classEnd}";
+        $classRange = "Referensi!\$A\$2:\$A\${$classEnd}";
+        $formula = fn (int $row, int $col) => sprintf(
+            '=IF($C%1$d="","",IFERROR(VLOOKUP($C%1$d,%2$s,%3$d,FALSE),""))',
+            $row, $lookup, $col
+        );
 
         for ($row = 2; $row <= $last; $row++) {
-            $s->getCell("C$row")->setDataValidation($this->listValidation($gradeRange, 'kelas'));
-            $s->getCell("D$row")->setDataValidation($this->listValidation($majorRange, 'jurusan'));
+            $s->getCell("C$row")->setDataValidation($this->listValidation($classRange, 'kelas'));
+            $s->setCellValue("D$row", $formula($row, 2)); // Jurusan
+            $s->setCellValue("E$row", $formula($row, 3)); // Guru BK
         }
     }
 
-    private function fillReference(Worksheet $s): array
+    private function fillReference(Worksheet $s): int
     {
-        $grades = Grade::with('bk:id,name,nip')->orderBy('name')->get();
-        $majors = Major::orderBy('name')->get();
-        $bks = User::where('role', 'bk')->whereNotNull('nip')->orderBy('name')->get(['name', 'nip']);
+        $classrooms = Classroom::with(['grade.bk:id,name,nip', 'major:id,name'])
+            ->get()
+            ->sortBy(fn ($c) => $c->name, SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
         $teachers = HomeroomTeacher::orderBy('name')->get(['nip', 'name']);
 
-        $s->fromArray(['Kelas', 'NIP Guru BK Kelas', 'Guru BK Kelas'], null, 'A1');
-        $s->fromArray(['Jurusan'], null, 'E1');
-        $s->fromArray(['NIP Guru BK', 'Nama Guru BK'], null, 'G1');
-        $s->fromArray(['NIP Wali Kelas', 'Nama Wali Kelas'], null, 'J1');
-        $s->getStyle('A1:K1')->getFont()->setBold(true);
+        $s->fromArray(['Kelas', 'Jurusan', 'Guru BK', 'NIP Guru BK'], null, 'A1');
+        $s->fromArray(['NIP Wali Kelas', 'Nama Wali Kelas'], null, 'G1');
+        $s->getStyle('A1:H1')->getFont()->setBold(true);
 
-        foreach ($grades as $i => $g) {
+        foreach ($classrooms as $i => $c) {
             $r = $i + 2;
-            $this->put($s, "A$r", $g->name);
-            $this->put($s, "B$r", $g->bk?->nip ?? '-');
-            $this->put($s, "C$r", $g->bk?->name ?? '-');
+            $this->put($s, "A$r", $c->name);
+            $this->put($s, "B$r", $c->major->name);
+            $this->put($s, "C$r", $c->grade->bk?->name ?? '-');
+            $this->put($s, "D$r", $c->grade->bk?->nip ?? '-');
         }
-        foreach ($majors as $i => $m) {
-            $this->put($s, 'E'.($i + 2), $m->name);
-        }
-        foreach ($bks as $i => $b) {
-            $r = $i + 2;
-            $this->put($s, "G$r", $b->nip);
-            $this->put($s, "H$r", $b->name);
-        }
+
         foreach ($teachers as $i => $t) {
             $r = $i + 2;
-            $this->put($s, "J$r", $t->nip);
-            $this->put($s, "K$r", $t->name);
+            $this->put($s, "G$r", $t->nip);
+            $this->put($s, "H$r", $t->name);
         }
 
-        foreach (range('A', 'K') as $col) {
+        foreach (range('A', 'H') as $col) {
             $s->getColumnDimension($col)->setAutoSize(true);
         }
 
-        return [max(2, $grades->count() + 1), max(2, $majors->count() + 1)];
+        return max(2, $classrooms->count() + 1);
     }
 
     private function fillGuide(Worksheet $s): void
@@ -141,11 +142,12 @@ class StudentTemplateService
             'Isi data pada sheet "Template" mulai baris 2. Jangan mengubah, menghapus, atau menambah kolom pada baris judul (baris 1).',
             "NIS: {$digits} digit angka, tanpa spasi, huruf, atau tanda baca. Contoh: 2324001.",
             'Nama Siswa: nama lengkap, maksimal 100 karakter.',
-            'Kelas dan Jurusan: pilih dari dropdown. Nilainya harus sama dengan data di menu Kelas & Jurusan.',
-            'NIP Guru BK: angka saja. Harus NIP guru BK dari kelas yang dipilih (lihat sheet Referensi, kolom "NIP Guru BK Kelas").',
+            'Kelas: pilih dari dropdown, contoh "X RPL 1". Daftar kelas dibuat di menu Kelas & Jurusan.',
+            'Jurusan dan Guru BK (kolom abu-abu): terisi otomatis dari kelas. Jangan diisi atau diubah, dan tidak dibaca saat impor.',
             'NIP Wali Kelas: angka saja, harus terdaftar di menu Wali Kelas (lihat sheet Referensi).',
-            'Jangan mengubah format kolom. Seluruh kolom sudah berformat Teks agar angka nol di depan dan NIP yang panjang tidak rusak.',
-            'NIS yang sudah terdaftar akan diperbarui. NIS yang belum terdaftar hanya akan ditambahkan jika opsi "Tambahkan siswa baru" dicentang saat mengimpor.',
+            'Jangan mengubah format kolom. Kolom isian sudah berformat Teks agar angka nol di depan dan NIP yang panjang tidak rusak.',
+            'Jangan memakai rumus pada kolom isian. Tempel sebagai nilai (Paste Special > Values).',
+            'NIS yang sudah terdaftar akan diperbarui. NIS yang belum terdaftar hanya ditambahkan jika opsi "Tambahkan siswa baru" dicentang saat mengimpor.',
             '',
             'Jika ada satu saja baris yang salah, SELURUH impor dibatalkan dan daftar kesalahannya ditampilkan. Tidak ada data yang berubah.',
             'Gunakan tombol "Periksa file" lebih dulu untuk mengecek isi file tanpa menyimpan.',

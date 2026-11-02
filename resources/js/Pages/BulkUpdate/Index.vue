@@ -72,9 +72,9 @@ const run = (dry) => {
             <div class="bg-white border border-gray-200 rounded-lg p-5">
                 <p class="font-medium text-gray-900 mb-3">Panduan</p>
                 <ol class="list-decimal pl-5 space-y-2 text-sm text-gray-600">
-                    <li>Unduh template, lalu isi sheet <strong>Template</strong> mulai baris 2. Arahkan kursor ke judul kolom untuk melihat note.</li>
-                    <li>NIS berisi <strong>{{ nisDigits }} digit angka</strong>. Kelas dan Jurusan dipilih dari dropdown.</li>
-                    <li>NIP Guru BK harus guru BK dari kelas yang dipilih. Daftar lengkap ada di sheet <strong>Referensi</strong>.</li>
+                    <li>Unduh template terbaru, lalu isi sheet <strong>Template</strong> mulai baris 2. Arahkan kursor ke judul kolom untuk melihat note.</li>
+                    <li>Isi <strong>NIS</strong> ({{ nisDigits }} digit angka), <strong>Nama Siswa</strong>, <strong>Kelas</strong> (pilih dari dropdown, contoh X RPL 1), dan <strong>NIP Wali Kelas</strong>.</li>
+                    <li>Kolom <strong>Jurusan</strong> dan <strong>Guru BK</strong> (abu-abu) terisi otomatis dari kelas. Jangan diubah.</li>
                     <li>Gunakan <strong>Periksa file</strong> untuk mengecek isi file tanpa menyimpan apa pun.</li>
                     <li>Jika ada satu saja baris yang salah, <strong>seluruh impor dibatalkan</strong> dan kesalahannya ditampilkan di bawah.</li>
                     <li>Maksimal {{ maxRows }} baris per file.</li>

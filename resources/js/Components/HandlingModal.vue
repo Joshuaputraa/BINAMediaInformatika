@@ -101,10 +101,7 @@ const bkInfo = computed(() => {
     return name
 })
 
-const classInfo = computed(() => {
-    const parts = [props.student.grade?.name, props.student.major?.name].filter(Boolean)
-    return parts.length ? parts.join(' ') : '-'
-})
+const classInfo = computed(() => props.student.classroom?.name ?? '-')
 
 const dropout = computed(() =>
     props.student.status === 'dropout' ? props.student.handlings.find((h) => h.type === 'dropout') : null

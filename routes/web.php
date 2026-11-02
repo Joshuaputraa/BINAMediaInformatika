@@ -13,6 +13,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GradeController;
 use App\Http\Controllers\MajorController;
 use App\Http\Controllers\BulkUpdateController;
+use App\Http\Controllers\ClassroomController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
@@ -71,5 +72,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/bulk-update', [BulkUpdateController::class, 'index']);
         Route::get('/bulk-update/template', [BulkUpdateController::class, 'template']);
         Route::post('/bulk-update', [BulkUpdateController::class, 'import']);
+
+        Route::post('/classrooms', [ClassroomController::class, 'store']);
+        Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update']);
+        Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy']);
+        Route::get('/classrooms/{classroom}/students', [ClassroomController::class, 'students']);
     });
 });

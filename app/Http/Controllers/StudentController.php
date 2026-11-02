@@ -4,9 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\StudentStatus;
 use App\Http\Requests\StudentRequest;
-use App\Models\Grade;
 use App\Models\HomeroomTeacher;
-use App\Models\Major;
+use App\Models\Classroom;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\HandlingService;
@@ -29,8 +28,8 @@ class StudentController extends Controller
 
         $students = Student::query()
             ->with([
-                'grade:id,name',
-                'major:id,name',
+                'classroom.grade:id,name',
+                'classroom.major:id,name',
                 'homeroomTeacher:id,name',
                 'bk:id,name',
                 'handlings.teacher:id,name',
@@ -53,8 +52,15 @@ class StudentController extends Controller
             'students' => $students,
             'teachers' => $isBk ? [] : HomeroomTeacher::orderBy('name')->get(['id', 'nip', 'name']),
             'bks' => $isBk ? [] : User::where('role', 'bk')->orderBy('name')->get(['id', 'name']),
-            'grades' => $isBk ? [] : Grade::with('bk:id,name')->orderBy('name')->get(['id', 'name', 'bk_user_id']),
-            'majors' => $isBk ? [] : Major::orderBy('name')->get(['id', 'name']),
+            'classrooms' => $isBk ? [] : Classroom::with(['grade.bk:id,name', 'major:id,name'])->get()
+                ->sortBy(fn ($c) => $c->name, SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->map(fn ($c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'major' => $c->major->name,
+                    'bk' => $c->grade->bk?->name,
+                ]),
             'nisDigits' => (int) config('school.nis_digits'),
             'filters' => $request->only('search'),
         ]);

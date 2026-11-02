@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\HasIndonesianValidation;
 use App\Models\Major;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Models\Student;
 
 class MajorController extends Controller
 {
@@ -27,11 +28,11 @@ class MajorController extends Controller
 
     public function destroy(Major $major)
     {
-        $count = $major->students()->count();
+        $count = $major->classrooms()->count();
 
         if ($count > 0) {
             return back()->withErrors([
-                'delete' => "Jurusan ini masih memiliki $count siswa. Pindahkan siswanya terlebih dahulu.",
+                'delete' => "Jurusan ini masih dipakai $count kelas. Hapus atau pindahkan kelasnya terlebih dahulu.",
             ]);
         }
 
@@ -40,19 +41,19 @@ class MajorController extends Controller
         return back()->with('success', 'Jurusan dihapus.');
     }
 
-    /** Daftar siswa jurusan ini (JSON, dipanggil saat baris jurusan diklik). */
+    /** Daftar siswa satu jurusan (JSON, dipanggil saat baris jurusan diklik). */
     public function students(Major $major)
     {
-        $students = $major->students()
-            ->with('grade:id,name')
+        $students = Student::whereHas('classroom', fn ($q) => $q->where('major_id', $major->id))
+            ->with(['classroom.grade:id,name', 'classroom.major:id,name'])
             ->orderBy('name')
-            ->get(['id', 'nis', 'name', 'status', 'grade_id'])
+            ->get(['id', 'nis', 'name', 'status', 'classroom_id'])
             ->map(fn ($s) => [
                 'id' => $s->id,
                 'nis' => $s->nis,
                 'name' => $s->name,
                 'status' => $s->status->value,
-                'extra' => $s->grade?->name,
+                'extra' => $s->classroom?->name,
             ]);
 
         return response()->json(['title' => "Jurusan {$major->name}", 'extraLabel' => 'Kelas', 'students' => $students]);

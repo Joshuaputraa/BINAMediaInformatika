@@ -20,8 +20,7 @@ class StudentRequest extends FormRequest
         return [
             'nis' => ['required', "digits:$digits", Rule::unique('students', 'nis')->ignore($student?->id)],
             'name' => ['required', 'string', 'max:100'],
-            'grade_id' => ['required', 'exists:grades,id'],
-            'major_id' => ['required', 'exists:majors,id'],
+            'classroom_id' => ['required', 'exists:classrooms,id'],
             'homeroom_teacher_id' => ['required', 'exists:homeroom_teachers,id'],
         ];
     }
@@ -31,8 +30,7 @@ class StudentRequest extends FormRequest
         return [
             'nis' => 'NIS',
             'name' => 'Nama siswa',
-            'grade_id' => 'Kelas',
-            'major_id' => 'Jurusan',
+            'classroom_id' => 'Kelas',
             'homeroom_teacher_id' => 'Wali kelas',
         ];
     }

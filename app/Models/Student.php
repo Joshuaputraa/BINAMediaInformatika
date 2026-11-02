@@ -10,7 +10,7 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id', 'grade_id', 'major_id'];
+    protected $fillable = ['nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id', 'classroom_id'];
 
     protected $casts = [
         'status' => StudentStatus::class,
@@ -90,14 +90,9 @@ class Student extends Model
         return $this->belongsTo(HomeroomTeacher::class, 'homeroom_teacher_id');
     }
 
-    public function grade()
+    public function classroom()
     {
-        return $this->belongsTo(Grade::class);
-    }
-
-    public function major()
-    {
-        return $this->belongsTo(Major::class);
+        return $this->belongsTo(Classroom::class);
     }
 
     /** Dikirim ke frontend sebagai `wali_handled` (true/false). */

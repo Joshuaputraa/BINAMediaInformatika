@@ -13,8 +13,13 @@ class Grade extends Model
         return $this->belongsTo(User::class, 'bk_user_id');
     }
 
+    public function classrooms()
+    {
+        return $this->hasMany(Classroom::class);
+    }
+
     public function students()
     {
-        return $this->hasMany(Student::class);
+        return $this->hasManyThrough(Student::class, Classroom::class);
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Grade;
+use App\Models\Classroom;
 use App\Models\Student;
 
 class StudentService
@@ -19,10 +19,10 @@ class StudentService
         return $student;
     }
 
-    /** Guru BK siswa selalu mengikuti guru BK kelasnya. */
+    /** Guru BK siswa mengikuti guru BK tingkat dari kelasnya. */
     private function withBk(array $data): array
     {
-        $data['bk_user_id'] = Grade::findOrFail($data['grade_id'])->bk_user_id;
+        $data['bk_user_id'] = Classroom::with('grade')->findOrFail($data['classroom_id'])->grade->bk_user_id;
 
         return $data;
     }

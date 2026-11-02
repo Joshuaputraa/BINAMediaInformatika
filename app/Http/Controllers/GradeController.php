@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\HasIndonesianValidation;
 use App\Models\Grade;
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -16,7 +17,7 @@ class GradeController extends Controller
     {
         Grade::create($this->validated($request));
 
-        return back()->with('success', 'Kelas ditambahkan.');
+        return back()->with('success', 'Tingkat ditambahkan.');
     }
 
     public function update(Request $request, Grade $grade)
@@ -26,44 +27,45 @@ class GradeController extends Controller
         DB::transaction(function () use ($grade, $data) {
             $grade->update($data);
 
-            // siswa kelas ini ikut berpindah ke guru BK yang baru
-            $grade->students()->update(['bk_user_id' => $data['bk_user_id']]);
+            // siswa di semua kelas tingkat ini ikut berpindah ke guru BK yang baru
+            Student::whereIn('classroom_id', $grade->classrooms()->pluck('id'))
+                ->update(['bk_user_id' => $data['bk_user_id']]);
         });
 
-        return back()->with('success', 'Kelas diperbarui.');
+        return back()->with('success', 'Tingkat diperbarui.');
     }
 
     public function destroy(Grade $grade)
     {
-        $count = $grade->students()->count();
+        $count = $grade->classrooms()->count();
 
         if ($count > 0) {
             return back()->withErrors([
-                'delete' => "Kelas ini masih memiliki $count siswa. Pindahkan siswanya terlebih dahulu.",
+                'delete' => "Tingkat ini masih memiliki $count kelas. Hapus atau pindahkan kelasnya terlebih dahulu.",
             ]);
         }
 
         $grade->delete();
 
-        return back()->with('success', 'Kelas dihapus.');
+        return back()->with('success', 'Tingkat dihapus.');
     }
 
-    /** Daftar siswa kelas ini (JSON, dipanggil saat baris kelas diklik). */
+    /** Daftar siswa satu tingkat (JSON, dipanggil saat baris tingkat diklik). */
     public function students(Grade $grade)
     {
-        $students = $grade->students()
-            ->with('major:id,name')
+        $students = Student::whereHas('classroom', fn ($q) => $q->where('grade_id', $grade->id))
+            ->with(['classroom.grade:id,name', 'classroom.major:id,name'])
             ->orderBy('name')
-            ->get(['id', 'nis', 'name', 'status', 'major_id'])
+            ->get(['id', 'nis', 'name', 'status', 'classroom_id'])
             ->map(fn ($s) => [
                 'id' => $s->id,
                 'nis' => $s->nis,
                 'name' => $s->name,
                 'status' => $s->status->value,
-                'extra' => $s->major?->name,
+                'extra' => $s->classroom?->name,
             ]);
 
-        return response()->json(['title' => "Kelas {$grade->name}", 'extraLabel' => 'Jurusan', 'students' => $students]);
+        return response()->json(['title' => "Tingkat {$grade->name}", 'extraLabel' => 'Kelas', 'students' => $students]);
     }
 
     private function validated(Request $request, ?Grade $grade = null): array

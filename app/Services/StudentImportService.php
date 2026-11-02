@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Grade;
+use App\Models\Classroom;
 use App\Models\HomeroomTeacher;
-use App\Models\Major;
 use App\Models\Student;
-use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx as XlsxReader;
@@ -38,7 +36,7 @@ class StudentImportService
         return new ImportResult($this->errors, $this->errorCount, 0, 0, $dryRun);
     }
 
-    /** Baca sheet "Template" menjadi daftar baris bersih. Mengembalikan null jika file tidak sesuai. */
+    /** Baca sheet Template menjadi daftar baris. Mengembalikan null jika file tidak sesuai. */
     private function readRows(UploadedFile $file): ?array
     {
         try {
@@ -52,13 +50,7 @@ class StudentImportService
             return null;
         }
 
-        $sheet = $spreadsheet->getSheetByName('Template');
-
-        if (! $sheet) {
-            $this->error(0, 'File', 'Sheet "Template" tidak ditemukan. Gunakan template yang disediakan.');
-
-            return null;
-        }
+        $sheet = $spreadsheet->getSheetByName('Template') ?? $spreadsheet->getSheet(0);
 
         if ($sheet->getHighestDataRow() - 1 > StudentTemplateService::MAX_ROWS) {
             $this->error(0, 'File', 'Maksimal '.StudentTemplateService::MAX_ROWS.' baris data per file.');
@@ -66,14 +58,18 @@ class StudentImportService
             return null;
         }
 
-        $raw = $sheet->toArray(null, true, false, false); // nilai mentah, tanpa format tampilan
+        // Nilai mentah: rumus tidak dihitung dan format tampilan tidak dipakai
+        $raw = $sheet->toArray(null, false, false, false);
         $spreadsheet->disconnectWorksheets();
 
         $expected = StudentTemplateService::HEADERS;
-        $header = array_map(fn ($v) => $this->clean($v), array_slice($raw[0] ?? [], 0, count($expected)));
+        $header = array_map(
+            fn ($v) => mb_strtolower($this->clean($v)),
+            array_pad(array_slice($raw[0] ?? [], 0, count($expected)), count($expected), null)
+        );
 
-        if ($header !== $expected) {
-            $this->error(0, 'Judul kolom', 'Judul kolom tidak sesuai template. Urutan yang benar: '.implode(', ', $expected).'.');
+        if ($header !== array_map('mb_strtolower', $expected)) {
+            $this->error(0, 'Judul kolom', 'Judul kolom tidak sesuai template. Urutan yang benar: '.implode(', ', $expected).'. Unduh template terbaru.');
 
             return null;
         }
@@ -83,11 +79,12 @@ class StudentImportService
         foreach (array_slice($raw, 1, null, true) as $i => $cells) {
             $cells = array_pad(array_slice($cells, 0, count($expected)), count($expected), null);
 
-            if (collect($cells)->every(fn ($c) => $this->clean($c) === '')) {
-                continue; // lewati baris kosong
-            }
+            // Baris dianggap kosong bila kolom isian kosong (kolom otomatis berisi rumus)
+            $filled = collect(StudentTemplateService::INPUT_COLUMNS)->contains(fn ($c) => $this->clean($cells[$c]) !== '');
 
-            $rows[] = ['row' => $i + 1, 'cells' => $cells];
+            if ($filled) {
+                $rows[] = ['row' => $i + 1, 'cells' => $cells];
+            }
         }
 
         if (! $rows) {
@@ -104,9 +101,8 @@ class StudentImportService
     {
         $digits = (int) config('school.nis_digits');
 
-        $grades = Grade::with('bk:id,name,nip')->get()->keyBy(fn ($g) => mb_strtolower($g->name));
-        $majors = Major::all()->keyBy(fn ($m) => mb_strtolower($m->name));
-        $bks = User::where('role', 'bk')->whereNotNull('nip')->get()->keyBy('nip');
+        $classrooms = Classroom::with(['grade:id,name,bk_user_id', 'major:id,name'])->get()
+            ->keyBy(fn ($c) => $this->key($c->name));
         $teachers = HomeroomTeacher::all()->keyBy('nip');
 
         $nisList = collect($rows)->map(fn ($r) => $this->clean($r['cells'][0]))->filter(fn ($v) => ctype_digit($v))->all();
@@ -120,14 +116,22 @@ class StudentImportService
 
             $nis = $this->clean($cells[0]);
             $name = $this->clean($cells[1]);
-            $gradeName = $this->clean($cells[2]);
-            $majorName = $this->clean($cells[3]);
-            $bkNip = $this->clean($cells[4]);
+            $className = $this->clean($cells[2]);
             $teacherNip = $this->clean($cells[5]);
 
+            // Kolom isian tidak boleh berisi rumus
+            foreach ([[$nis, 'NIS'], [$name, 'Nama Siswa'], [$className, 'Kelas'], [$teacherNip, 'NIP Wali Kelas']] as [$value, $column]) {
+                if (str_starts_with($value, '=')) {
+                    $this->error($n, $column, 'Berisi rumus Excel. Isi dengan nilai biasa (tempel sebagai Values).');
+                }
+            }
+
             // NIS
+            $nisOk = false;
             if ($nis === '') {
                 $this->error($n, 'NIS', 'Wajib diisi.');
+            } elseif (str_starts_with($nis, '=')) {
+                // sudah dilaporkan di atas
             } elseif (! ctype_digit($nis)) {
                 $this->error($n, 'NIS', "Hanya boleh berisi angka (ditemukan \"$nis\").");
             } elseif (strlen($nis) !== $digits) {
@@ -136,6 +140,7 @@ class StudentImportService
                 $this->error($n, 'NIS', "NIS ganda, sudah ada di baris {$seen[$nis]}.");
             } else {
                 $seen[$nis] = $n;
+                $nisOk = true;
             }
 
             // Nama
@@ -145,39 +150,20 @@ class StudentImportService
                 $this->error($n, 'Nama Siswa', 'Maksimal 100 karakter.');
             }
 
-            // Kelas & jurusan
-            $grade = null;
-            if ($gradeName === '') {
+            // Kelas (jurusan dan guru BK mengikuti kelas)
+            $classroom = null;
+            if ($className === '') {
                 $this->error($n, 'Kelas', 'Wajib diisi.');
-            } elseif (! ($grade = $grades[mb_strtolower($gradeName)] ?? null)) {
-                $this->error($n, 'Kelas', "Kelas \"$gradeName\" tidak ditemukan. Pilih dari daftar.");
-            }
-
-            $major = null;
-            if ($majorName === '') {
-                $this->error($n, 'Jurusan', 'Wajib diisi.');
-            } elseif (! ($major = $majors[mb_strtolower($majorName)] ?? null)) {
-                $this->error($n, 'Jurusan', "Jurusan \"$majorName\" tidak ditemukan. Pilih dari daftar.");
-            }
-
-            // Guru BK: harus guru BK dari kelas tersebut
-            $bk = null;
-            if ($bkNip === '') {
-                $this->error($n, 'NIP Guru BK', 'Wajib diisi.');
-            } elseif ($this->lostPrecision($cells[4])) {
-                $this->error($n, 'NIP Guru BK', 'Terbaca sebagai angka sehingga digitnya terpotong. Ketik ulang pada kolom berformat Teks.');
-            } elseif (! ctype_digit($bkNip)) {
-                $this->error($n, 'NIP Guru BK', 'Hanya boleh berisi angka.');
-            } elseif (! ($bk = $bks[$bkNip] ?? null)) {
-                $this->error($n, 'NIP Guru BK', "NIP $bkNip bukan guru BK yang terdaftar.");
-            } elseif ($grade && (int) $grade->bk_user_id !== (int) $bk->id) {
-                $this->error($n, 'NIP Guru BK', "Guru BK kelas {$grade->name} adalah {$grade->bk?->name} (NIP {$grade->bk?->nip}).");
+            } elseif (! str_starts_with($className, '=') && ! ($classroom = $classrooms[$this->key($className)] ?? null)) {
+                $this->error($n, 'Kelas', "Kelas \"$className\" tidak ditemukan. Pilih dari dropdown atau tambahkan kelasnya di menu Kelas & Jurusan.");
             }
 
             // Wali kelas
             $teacher = null;
             if ($teacherNip === '') {
                 $this->error($n, 'NIP Wali Kelas', 'Wajib diisi.');
+            } elseif (str_starts_with($teacherNip, '=')) {
+                // sudah dilaporkan di atas
             } elseif ($this->lostPrecision($cells[5])) {
                 $this->error($n, 'NIP Wali Kelas', 'Terbaca sebagai angka sehingga digitnya terpotong. Ketik ulang pada kolom berformat Teks.');
             } elseif (! ctype_digit($teacherNip)) {
@@ -187,8 +173,8 @@ class StudentImportService
             }
 
             // NIS sudah terdaftar?
-            $student = ($nis !== '' && ctype_digit($nis)) ? ($existing[$nis] ?? null) : null;
-            if ($nis !== '' && ctype_digit($nis) && strlen($nis) === $digits && ! $student && ! $allowCreate) {
+            $student = $nisOk ? ($existing[$nis] ?? null) : null;
+            if ($nisOk && ! $student && ! $allowCreate) {
                 $this->error($n, 'NIS', 'NIS belum terdaftar. Centang "Tambahkan siswa baru" jika ini siswa baru.');
             }
 
@@ -198,10 +184,9 @@ class StudentImportService
                     'student' => $student,
                     'attrs' => [
                         'name' => $name,
-                        'grade_id' => $grade->id,
-                        'major_id' => $major->id,
+                        'classroom_id' => $classroom->id,
                         'homeroom_teacher_id' => $teacher->id,
-                        'bk_user_id' => $grade->bk_user_id,
+                        'bk_user_id' => $classroom->grade->bk_user_id,
                     ],
                 ];
             }
@@ -238,6 +223,12 @@ class StudentImportService
         }
 
         return new ImportResult([], 0, $updated, $created, false);
+    }
+
+    /** Nama kelas dibandingkan tanpa membedakan huruf besar-kecil dan spasi: "x rpl1" = "X RPL 1". */
+    private function key(string $name): string
+    {
+        return mb_strtolower(str_replace(' ', '', $name));
     }
 
     /** Buang format dan karakter tak terlihat bawaan Excel. */
