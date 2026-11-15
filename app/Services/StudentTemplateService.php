@@ -69,7 +69,7 @@ class StudentTemplateService
         $s->getStyle("D2:E$last")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F3F4F6');
 
         $notes = [
-            'A1' => "Masukkan {$digits} digit angka NIS.\nContoh: 2324001\nTanpa spasi, huruf, atau tanda baca.",
+            'A1' => "Masukkan {$digits} digit angka NIS.\nContoh: 2324001\nNIS harus belum terdaftar (khusus siswa baru).",
             'B1' => "Nama lengkap siswa.\nMaksimal 100 karakter.",
             'C1' => "Pilih dari dropdown (klik sel lalu panah).\nContoh: X RPL 1\nKelas dibuat di menu Kelas & Jurusan.",
             'D1' => "Terisi otomatis dari kelas.\nJangan diisi atau diubah.",
@@ -147,7 +147,7 @@ class StudentTemplateService
             'NIP Wali Kelas: angka saja, harus terdaftar di menu Wali Kelas (lihat sheet Referensi).',
             'Jangan mengubah format kolom. Kolom isian sudah berformat Teks agar angka nol di depan dan NIP yang panjang tidak rusak.',
             'Jangan memakai rumus pada kolom isian. Tempel sebagai nilai (Paste Special > Values).',
-            'NIS yang sudah terdaftar akan diperbarui. NIS yang belum terdaftar hanya ditambahkan jika opsi "Tambahkan siswa baru" dicentang saat mengimpor.',
+            'Template ini khusus siswa baru: NIS tidak boleh sudah terdaftar. Untuk kenaikan kelas dan ganti wali kelas, gunakan tabel di menu Update Massal (tanpa Excel).',
             '',
             'Jika ada satu saja baris yang salah, SELURUH impor dibatalkan dan daftar kesalahannya ditampilkan. Tidak ada data yang berubah.',
             'Gunakan tombol "Periksa file" lebih dulu untuk mengecek isi file tanpa menyimpan.',

@@ -61,6 +61,8 @@ class ReportService
             ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
             ->when($type, fn ($q) => $q->where('type', $type))
-            ->when($bkId, fn ($q) => $q->whereHas('student', fn ($s) => $s->where('bk_user_id', $bkId)));
+            ->when($bkId, fn ($q) => $q->where(fn ($q) => $q
+                ->where('bk_user_id', $bkId)
+                ->orWhereHas('student', fn ($s) => $s->where('bk_user_id', $bkId))));
     }
 }

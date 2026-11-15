@@ -39,7 +39,7 @@ class Handling extends Model
     /** Wali kelas pada baris ini: yang dipilih saat penanganan, atau wali kelas siswa. */
     public function homeroomName(): ?string
     {
-        return $this->teacher?->name ?? $this->student?->homeroomTeacher?->name;
+        return $this->teacher?->name;
     }
 
     /**
@@ -48,10 +48,6 @@ class Handling extends Model
      */
     public function bkName(): ?string
     {
-        if ($this->type === StudentStatus::WaliKelas) {
-            return null;
-        }
-
-        return $this->bk?->name ?? $this->student?->bk?->name;
+        return $this->type === StudentStatus::WaliKelas ? null : $this->bk?->name;
     }
 }

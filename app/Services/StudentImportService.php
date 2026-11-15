@@ -18,7 +18,7 @@ class StudentImportService
 
     private int $errorCount = 0;
 
-    public function import(UploadedFile $file, bool $allowCreate, bool $dryRun): ImportResult
+    public function import(UploadedFile $file, bool $dryRun): ImportResult
     {
         $this->errors = [];
         $this->errorCount = 0;
@@ -26,7 +26,7 @@ class StudentImportService
         $rows = $this->readRows($file);
 
         if ($rows !== null) {
-            $plan = $this->validate($rows, $allowCreate);
+            $plan = $this->validate($rows);
 
             if ($this->errorCount === 0) {
                 return $this->finish($plan, $dryRun);
@@ -97,7 +97,7 @@ class StudentImportService
     }
 
     /** Validasi semua baris. Tidak ada yang disimpan di tahap ini. */
-    private function validate(array $rows, bool $allowCreate): array
+    private function validate(array $rows): array
     {
         $digits = (int) config('school.nis_digits');
 
@@ -106,7 +106,7 @@ class StudentImportService
         $teachers = HomeroomTeacher::all()->keyBy('nip');
 
         $nisList = collect($rows)->map(fn ($r) => $this->clean($r['cells'][0]))->filter(fn ($v) => ctype_digit($v))->all();
-        $existing = Student::whereIn('nis', $nisList)->get()->keyBy('nis');
+        $existing = Student::whereIn('nis', $nisList)->pluck('nis')->flip();
 
         $seen = [];
         $plan = [];
@@ -127,7 +127,6 @@ class StudentImportService
             }
 
             // NIS
-            $nisOk = false;
             if ($nis === '') {
                 $this->error($n, 'NIS', 'Wajib diisi.');
             } elseif (str_starts_with($nis, '=')) {
@@ -138,9 +137,10 @@ class StudentImportService
                 $this->error($n, 'NIS', "Harus $digits digit angka (ditemukan ".strlen($nis).' digit). Jika NIS berawalan 0, pastikan kolom berformat Teks.');
             } elseif (isset($seen[$nis])) {
                 $this->error($n, 'NIS', "NIS ganda, sudah ada di baris {$seen[$nis]}.");
+            } elseif (isset($existing[$nis])) {
+                $this->error($n, 'NIS', 'NIS sudah terdaftar. Import hanya untuk siswa baru. Untuk kenaikan kelas gunakan tabel di bagian atas menu ini.');
             } else {
                 $seen[$nis] = $n;
-                $nisOk = true;
             }
 
             // Nama
@@ -172,16 +172,9 @@ class StudentImportService
                 $this->error($n, 'NIP Wali Kelas', "NIP $teacherNip tidak terdaftar sebagai wali kelas.");
             }
 
-            // NIS sudah terdaftar?
-            $student = $nisOk ? ($existing[$nis] ?? null) : null;
-            if ($nisOk && ! $student && ! $allowCreate) {
-                $this->error($n, 'NIS', 'NIS belum terdaftar. Centang "Tambahkan siswa baru" jika ini siswa baru.');
-            }
-
             if ($this->errorCount === $before) {
                 $plan[] = [
                     'nis' => $nis,
-                    'student' => $student,
                     'attrs' => [
                         'name' => $name,
                         'classroom_id' => $classroom->id,
@@ -198,21 +191,16 @@ class StudentImportService
     /** Semua baris valid: simpan (atau hanya hitung bila dry run). Semua-atau-tidak-sama-sekali. */
     private function finish(array $plan, bool $dryRun): ImportResult
     {
-        $updated = collect($plan)->filter(fn ($p) => $p['student'])->count();
-        $created = count($plan) - $updated;
+        $created = count($plan);
 
         if ($dryRun) {
-            return new ImportResult([], 0, $updated, $created, true);
+            return new ImportResult([], 0, 0, $created, true);
         }
 
         try {
             DB::transaction(function () use ($plan) {
                 foreach ($plan as $p) {
-                    if ($p['student']) {
-                        $p['student']->update($p['attrs']);
-                    } else {
-                        Student::create(['nis' => $p['nis']] + $p['attrs']);
-                    }
+                    Student::create(['nis' => $p['nis']] + $p['attrs']);
                 }
             });
         } catch (Throwable $e) {
@@ -222,7 +210,7 @@ class StudentImportService
             return new ImportResult($this->errors, $this->errorCount, 0, 0, false);
         }
 
-        return new ImportResult([], 0, $updated, $created, false);
+        return new ImportResult([], 0, 0, $created, false);
     }
 
     /** Nama kelas dibandingkan tanpa membedakan huruf besar-kecil dan spasi: "x rpl1" = "X RPL 1". */

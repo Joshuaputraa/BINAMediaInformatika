@@ -10,7 +10,9 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id', 'classroom_id'];
+    protected $fillable = [
+        'nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id', 'classroom_id',
+    ];
 
     protected $casts = [
         'status' => StudentStatus::class,
@@ -29,6 +31,16 @@ class Student extends Model
         return $this->belongsTo(User::class, 'bk_user_id');
     }
 
+    public function homeroomTeacher()
+    {
+        return $this->belongsTo(HomeroomTeacher::class, 'homeroom_teacher_id');
+    }
+
+    public function classroom()
+    {
+        return $this->belongsTo(Classroom::class);
+    }
+
     public function isProblem(): bool
     {
         return $this->status->isProblem();
@@ -39,29 +51,88 @@ class Student extends Model
         return $this->status->isFinal();
     }
 
-    /** Dikirim ke frontend sebagai `bk_handled` (true/false). */
+    /** Dikirim ke frontend sebagai `bk_handled`: guru BK yang menaungi SAAT INI sudah menangani. */
     public function getBkHandledAttribute(): bool
     {
         return $this->hasBeenHandledByBk();
     }
 
+    /** Guru BK saat ini sudah mencatat penanganan untuk siswa ini. Penanganan guru BK sebelumnya tidak dihitung. */
     public function hasBeenHandledByBk(): bool
     {
-        if ($this->bk_handled_at !== null) {
-            return true;
+        if (! $this->bk_user_id) {
+            return false;
         }
 
-        // Cadangan untuk data lama: cek riwayat penanganan oleh akun guru BK.
-        $isBkHandling = fn ($h) => $h->type === StudentStatus::Bk && $h->user?->role === 'bk';
+        $mine = fn ($h) => $h->type === StudentStatus::Bk && (int) $h->user_id === (int) $this->bk_user_id;
 
-        if ($this->relationLoaded('handlings')) {
-            return $this->handlings->contains($isBkHandling);
+        return $this->relationLoaded('handlings')
+            ? $this->handlings->contains($mine)
+            : $this->handlings()
+                ->where('type', StudentStatus::Bk->value)
+                ->where('user_id', $this->bk_user_id)
+                ->exists();
+    }
+
+    /** Ada rujukan yang ditujukan ke guru BK yang menaungi siswa ini saat ini. */
+    public function isReferredToBk(): bool
+    {
+        if (! $this->bk_user_id) {
+            return false;
         }
 
-        return $this->handlings()
-            ->where('type', StudentStatus::Bk->value)
-            ->whereHas('user', fn ($q) => $q->where('role', 'bk'))
-            ->exists();
+        $referred = fn ($h) => $h->type === StudentStatus::Bk && (int) $h->bk_user_id === (int) $this->bk_user_id;
+
+        return $this->relationLoaded('handlings')
+            ? $this->handlings->contains($referred)
+            : $this->handlings()
+                ->where('type', StudentStatus::Bk->value)
+                ->where('bk_user_id', $this->bk_user_id)
+                ->exists();
+    }
+
+    /** Dikirim ke frontend sebagai `wali_handled`: wali kelas SAAT INI sudah menangani. */
+    public function getWaliHandledAttribute(): bool
+    {
+        return $this->hasBeenHandledByWaliKelas();
+    }
+
+    public function hasBeenHandledByWaliKelas(): bool
+    {
+        if (! $this->homeroom_teacher_id) {
+            return false;
+        }
+
+        $mine = fn ($h) => $h->type === StudentStatus::WaliKelas
+            && (int) $h->homeroom_teacher_id === (int) $this->homeroom_teacher_id;
+
+        return $this->relationLoaded('handlings')
+            ? $this->handlings->contains($mine)
+            : $this->handlings()
+                ->where('type', StudentStatus::WaliKelas->value)
+                ->where('homeroom_teacher_id', $this->homeroom_teacher_id)
+                ->exists();
+    }
+
+    /** Dikirim ke frontend sebagai `sp_level` (0 = belum pernah SP). */
+    public function getSpLevelAttribute(): int
+    {
+        return $this->spLevel();
+    }
+
+    /** Level SP tertinggi yang pernah diberikan (0 sampai 3), kumulatif lintas kelas. */
+    public function spLevel(): int
+    {
+        $types = $this->relationLoaded('handlings')
+            ? $this->handlings->map(fn ($h) => $h->type->value)
+            : $this->handlings()->get(['type'])->map(fn ($h) => $h->type->value);
+
+        return $types->map(fn ($t) => match ($t) {
+            'sp1' => 1,
+            'sp2' => 2,
+            'sp3' => 3,
+            default => 0,
+        })->max() ?? 0;
     }
 
     public function scopeProblem($query)
@@ -80,56 +151,9 @@ class Student extends Model
             'kesiswaan' => true,
             'bk' => $this->status === StudentStatus::Bk
                 && (int) $this->bk_user_id === (int) $user->id
+                && $this->isReferredToBk()
                 && ! $this->hasBeenHandledByBk(),
             default => false,
         };
-    }
-
-    public function homeroomTeacher()
-    {
-        return $this->belongsTo(HomeroomTeacher::class, 'homeroom_teacher_id');
-    }
-
-    public function classroom()
-    {
-        return $this->belongsTo(Classroom::class);
-    }
-
-    /** Dikirim ke frontend sebagai `wali_handled` (true/false). */
-    public function getWaliHandledAttribute(): bool
-    {
-        return $this->hasBeenHandledByWaliKelas();
-    }
-
-    public function hasBeenHandledByWaliKelas(): bool
-    {
-        if ($this->relationLoaded('handlings')) {
-            return $this->handlings->contains(fn ($h) => $h->type === StudentStatus::WaliKelas);
-        }
-
-        return $this->handlings()
-            ->where('type', StudentStatus::WaliKelas->value)
-            ->exists();
-    }
-
-    /** Dikirim ke frontend sebagai `sp_level` (0 = belum pernah SP). */
-    public function getSpLevelAttribute(): int
-    {
-        return $this->spLevel();
-    }
-
-    /** Level SP tertinggi yang pernah diberikan (0 sampai 3). */
-    public function spLevel(): int
-    {
-        $types = $this->relationLoaded('handlings')
-            ? $this->handlings->map(fn ($h) => $h->type->value)
-            : $this->handlings()->get(['type'])->map(fn ($h) => $h->type->value);
-
-        return $types->map(fn ($t) => match ($t) {
-            'sp1' => 1,
-            'sp2' => 2,
-            'sp3' => 3,
-            default => 0,
-        })->max() ?? 0;
     }
 }

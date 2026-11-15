@@ -38,7 +38,7 @@ class HandlingService
                 throw $this->fail('Siswa ini belum memiliki guru BK. Tentukan kelasnya lewat Edit siswa.');
             }
             if ($student->hasBeenHandledByBk()) {
-                throw $this->fail('Siswa ini sudah pernah ditangani guru BK.');
+                throw $this->fail('Siswa ini sudah ditangani guru BK yang menaunginya saat ini.');
             }
         }
 
@@ -52,19 +52,15 @@ class HandlingService
 
         return DB::transaction(function () use ($student, $actor, $data, $type) {
             $handling = $student->handlings()->create([
-                'homeroom_teacher_id' => $type === StudentStatus::WaliKelas ? $student->homeroom_teacher_id : null,
-                'bk_user_id' => $type === StudentStatus::Bk ? $student->bk_user_id : null,
+                // dicatat apa adanya saat kejadian, supaya riwayat tidak berubah setelah naik kelas
+                'homeroom_teacher_id' => $student->homeroom_teacher_id,
+                'bk_user_id' => $student->bk_user_id,
                 'user_id' => $actor->id,
                 'type' => $type,
                 'notes' => $data['notes'],
             ]);
 
             $student->status = $type;
-
-            if ($type === StudentStatus::Bk && $actor->role === 'bk') {
-                $student->bk_handled_at = now();
-            }
-
             $student->save();
 
             return $handling;

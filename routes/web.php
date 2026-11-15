@@ -14,6 +14,7 @@ use App\Http\Controllers\GradeController;
 use App\Http\Controllers\MajorController;
 use App\Http\Controllers\BulkUpdateController;
 use App\Http\Controllers\ClassroomController;
+use App\Http\Controllers\PromotionController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
@@ -72,6 +73,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/bulk-update', [BulkUpdateController::class, 'index']);
         Route::get('/bulk-update/template', [BulkUpdateController::class, 'template']);
         Route::post('/bulk-update', [BulkUpdateController::class, 'import']);
+
+        Route::get('/bulk-update/ids', [PromotionController::class, 'ids']);
+        Route::post('/bulk-update/move', [PromotionController::class, 'move']);
 
         Route::post('/classrooms', [ClassroomController::class, 'store']);
         Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update']);

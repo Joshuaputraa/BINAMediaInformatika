@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { useForm, usePage } from '@inertiajs/vue3'
 import StatusBadge from './StatusBadge.vue'
 import { ACTIONS } from '../status'
 
@@ -11,6 +11,8 @@ const props = defineProps({
     role: String,
 })
 const emit = defineEmits(['close'])
+
+const me = usePage().props.auth.user
 
 const isBk = computed(() => props.role === 'bk')
 const bkLocked = computed(() => !!props.student.bk_handled)
@@ -110,8 +112,11 @@ const dropout = computed(() =>
 const readOnlyMessage = computed(() => {
     if (props.student.status === 'dropout') return ''
     if (isBk.value) {
+        if (props.student.bk_user_id !== me.id) {
+            return `Siswa ini sudah berpindah ke guru BK lain (${props.student.bk?.name ?? '-'}). Riwayat penanganan Anda ada di bawah.`
+        }
         return props.student.bk_handled
-            ? 'Siswa ini sudah ditangani guru BK.'
+            ? 'Siswa ini sudah Anda tangani.'
             : 'Anda hanya bisa mengisi penanganan setelah kesiswaan merujuk siswa ini kepada Anda.'
     }
     return ''
@@ -120,7 +125,9 @@ const readOnlyMessage = computed(() => {
 const fmt = (d) => new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 
 const label = (h) => {
-    if (h.type === 'bk' && h.user?.role === 'kesiswaan') return 'Dirujuk ke guru BK'
+    if (h.type === 'bk' && h.user?.role === 'kesiswaan') {
+        return h.bk ? `Dirujuk ke ${h.bk.name}` : 'Dirujuk ke guru BK'
+    }
     return ACTIONS.find((a) => a.value === h.type)?.label
 }
 

@@ -23,6 +23,7 @@ class DashboardController extends Controller
             'homeroomTeacher:id,name',
             'bk:id,name',
             'handlings.teacher:id,name',
+            'handlings.bk:id,name',
             'handlings.user:id,name,role',
         ];
 
@@ -51,8 +52,9 @@ class DashboardController extends Controller
 
         if ($user->role === 'bk') {
             $mine = Student::with($relations)
-            ->where('bk_user_id', $user->id)
-            ->whereHas('handlings', fn ($q) => $q->where('type', StudentStatus::Bk->value))
+            ->whereHas('handlings', fn ($q) => $q
+                ->where('type', StudentStatus::Bk->value)
+                ->where('bk_user_id', $user->id))
             ->orderBy('name')
             ->get()
             ->map($mark);

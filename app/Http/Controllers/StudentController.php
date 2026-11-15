@@ -34,6 +34,7 @@ class StudentController extends Controller
                 'bk:id,name',
                 'handlings.teacher:id,name',
                 'handlings.user:id,name,role',
+                'handlings.bk:id,name',
             ])
             ->when($isBk, fn ($q) => $q->problem())
             ->when($request->search, function ($q, $s) {
