@@ -11,12 +11,13 @@ class Student extends Model
     use HasFactory;
 
     protected $fillable = [
-        'nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'homeroom_teacher_id', 'classroom_id',
+        'nis', 'name', 'status', 'bk_user_id', 'bk_handled_at', 'graduated_at', 'homeroom_teacher_id', 'classroom_id',
     ];
 
     protected $casts = [
         'status' => StudentStatus::class,
         'bk_handled_at' => 'datetime',
+        'graduated_at' => 'datetime',
     ];
 
     protected $appends = ['bk_handled', 'wali_handled', 'sp_level'];
@@ -49,6 +50,11 @@ class Student extends Model
     public function isDropout(): bool
     {
         return $this->status->isFinal();
+    }
+
+    public function isGraduated(): bool
+    {
+        return $this->status->isGraduated();
     }
 
     /** Dikirim ke frontend sebagai `bk_handled`: guru BK yang menaungi SAAT INI sudah menangani. */
@@ -137,13 +143,13 @@ class Student extends Model
 
     public function scopeProblem($query)
     {
-        return $query->where('status', '!=', StudentStatus::Normal->value);
+        return $query->whereNotIn('status', [StudentStatus::Normal->value, StudentStatus::Graduated->value]);
     }
 
     /** Aturan siapa boleh mengisi penanganan untuk siswa ini. */
     public function canBeHandledBy(User $user): bool
     {
-        if ($this->isDropout()) {
+        if ($this->isDropout() || $this->isGraduated()) {
             return false;
         }
 

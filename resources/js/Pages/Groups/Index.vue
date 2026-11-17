@@ -21,7 +21,7 @@ const tabs = computed(() => [
 
 const classCrud = useCrud('/classrooms', { grade_id: '', major_id: '', number: '' })
 const majorCrud = useCrud('/majors', { name: '' })
-const gradeCrud = useCrud('/grades', { name: '', bk_user_id: '' })
+const gradeCrud = useCrud('/grades', { name: '', bk_user_id: '', is_final: false })
 
 const addLabel = computed(() => ({ classrooms: 'Tambah kelas', majors: 'Tambah jurusan', grades: 'Tambah tingkat' })[tab.value])
 const openAdd = () => ({ classrooms: classCrud, majors: majorCrud, grades: gradeCrud })[tab.value].openAdd()
@@ -143,7 +143,10 @@ const th = 'px-4 py-2 font-medium'
                     </thead>
                     <tbody>
                         <tr v-for="g in grades" :key="g.id" class="border-b border-gray-100 last:border-0">
-                            <td class="px-4 py-3 font-medium text-gray-900">{{ g.name }}</td>
+                            <td class="px-4 py-3 font-medium text-gray-900">
+                                {{ g.name }}
+                                <span v-if="g.is_final" class="ml-2 text-xs font-normal text-green-700 bg-green-50 rounded px-2 py-0.5">Tingkat akhir</span>
+                            </td>
                             <td class="px-4 py-3">{{ g.bk?.name ?? '-' }}</td>
                             <td class="px-4 py-3">{{ g.classrooms_count }}</td>
                             <td class="px-4 py-3">
@@ -219,6 +222,13 @@ const th = 'px-4 py-2 font-medium'
                         v-model="gradeCrud.form.bk_user_id" :error="gradeCrud.form.errors.bk_user_id" />
                     <p class="text-xs text-gray-500 mt-1">Seluruh siswa di tingkat ini otomatis memakai guru BK tersebut.</p>
                 </div>
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <input v-model="gradeCrud.form.is_final" type="checkbox" class="mt-0.5 rounded border-gray-300" />
+                    <span>
+                        Tingkat akhir
+                        <span class="text-gray-500">(siswa diluluskan setelah tingkat ini, contoh: XII)</span>
+                    </span>
+                </label>
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" @click="gradeCrud.close" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Batal</button>
                     <button type="submit" :disabled="gradeCrud.form.processing"

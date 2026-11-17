@@ -73,6 +73,7 @@ class GradeController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:30', Rule::unique('grades', 'name')->ignore($grade?->id)],
             'bk_user_id' => ['required', Rule::exists('users', 'id')->where('role', 'bk')],
+            'is_final' => ['boolean'],
         ], $this->validationMessages(), $this->validationAttributes());
     }
 }

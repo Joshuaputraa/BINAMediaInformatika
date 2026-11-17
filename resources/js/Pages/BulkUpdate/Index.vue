@@ -27,14 +27,13 @@ const f = reactive({
     homeroom_teacher_id: props.filters.homeroom_teacher_id ?? '',
 })
 
-const selected = ref(new Set())
 const clean = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== '' && v !== null))
 
 let timer
 watch(f, () => {
     clearTimeout(timer)
     timer = setTimeout(() => {
-        selected.value = new Set() // pilihan dikosongkan agar tidak salah memindahkan siswa
+        // pilihan siswa sengaja TIDAK dikosongkan: bisa memilih dari beberapa pencarian berbeda
         router.get('/bulk-update', clean(f), { preserveState: true, preserveScroll: true, replace: true })
     }, 300)
 })
@@ -53,20 +52,37 @@ const teacherFilterOptions = computed(() => [
     ...props.teachers.map((t) => ({ value: String(t.id), label: t.name })),
 ])
 
-/* ---------- Pilihan siswa ---------- */
-const pageIds = computed(() => props.students.data.map((s) => s.id))
-const allOnPage = computed(() => pageIds.value.length > 0 && pageIds.value.every((id) => selected.value.has(id)))
+/* ---------- Pilihan siswa (tetap tersimpan walau filter berganti) ---------- */
+const selected = ref(new Map()) // id -> { id, nis, name, classroom }
+const showSelected = ref(false)
 
-const toggle = (id) => {
-    const next = new Set(selected.value)
-    next.has(id) ? next.delete(id) : next.add(id)
+const brief = (s) => ({ id: s.id, nis: s.nis, name: s.name, classroom: s.classroom })
+const selectedList = computed(() => [...selected.value.values()])
+const allOnPage = computed(
+    () => props.students.data.length > 0 && props.students.data.every((s) => selected.value.has(s.id))
+)
+
+const toggle = (s) => {
+    const next = new Map(selected.value)
+    next.has(s.id) ? next.delete(s.id) : next.set(s.id, brief(s))
     selected.value = next
 }
 
 const togglePage = () => {
-    const next = new Set(selected.value)
-    pageIds.value.forEach((id) => (allOnPage.value ? next.delete(id) : next.add(id)))
+    const next = new Map(selected.value)
+    props.students.data.forEach((s) => (allOnPage.value ? next.delete(s.id) : next.set(s.id, brief(s))))
     selected.value = next
+}
+
+const remove = (id) => {
+    const next = new Map(selected.value)
+    next.delete(id)
+    selected.value = next
+}
+
+const clearSelection = () => {
+    selected.value = new Map()
+    showSelected.value = false
 }
 
 const loadingIds = ref(false)
@@ -77,7 +93,9 @@ const selectAllMatching = async () => {
             headers: { Accept: 'application/json' },
         })
         const data = await res.json()
-        selected.value = new Set(data.ids)
+        const next = new Map(selected.value)
+        data.students.forEach((s) => next.set(s.id, s))
+        selected.value = next
     } finally {
         loadingIds.value = false
     }
@@ -99,37 +117,44 @@ const targetClass = computed(() => props.classrooms.find((c) => c.id === target.
 const targetTeacher = computed(() => props.teachers.find((t) => t.id === target.homeroom_teacher_id))
 const canApply = computed(() => selected.value.size > 0 && (target.classroom_id || target.homeroom_teacher_id))
 
-const confirming = ref(false)
+const confirming = ref(null) // 'move' | 'graduate'
+const graduateExisting = ref(true)
 const busy = ref(false)
 const moveError = ref('')
 
-const apply = () => {
-    router.post(
-        '/bulk-update/move',
-        {
-            student_ids: [...selected.value],
-            classroom_id: target.classroom_id || null,
-            homeroom_teacher_id: target.homeroom_teacher_id || null,
-        },
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onStart: () => (busy.value = true),
-            onFinish: () => (busy.value = false),
-            onSuccess: () => {
-                selected.value = new Set()
-                target.classroom_id = ''
-                target.homeroom_teacher_id = ''
-                moveError.value = ''
-                confirming.value = false
-            },
-            onError: (errors) => {
-                confirming.value = false
-                moveError.value = Object.values(errors)[0]
-            },
-        }
-    )
+const openMove = () => {
+    graduateExisting.value = true
+    confirming.value = 'move'
 }
+
+const send = (url, payload) =>
+    router.post(url, payload, {
+        preserveState: true,
+        preserveScroll: true,
+        onStart: () => (busy.value = true),
+        onFinish: () => (busy.value = false),
+        onSuccess: () => {
+            clearSelection()
+            target.classroom_id = ''
+            target.homeroom_teacher_id = ''
+            moveError.value = ''
+            confirming.value = null
+        },
+        onError: (errors) => {
+            confirming.value = null
+            moveError.value = Object.values(errors)[0]
+        },
+    })
+
+const apply = () =>
+    send('/bulk-update/move', {
+        student_ids: [...selected.value.keys()],
+        classroom_id: target.classroom_id || null,
+        homeroom_teacher_id: target.homeroom_teacher_id || null,
+        graduate_existing: !!(targetClass.value?.final && graduateExisting.value),
+    })
+
+const graduate = () => send('/bulk-update/graduate', { student_ids: [...selected.value.keys()] })
 
 /* ---------- Import siswa baru ---------- */
 const result = computed(() => page.props.flash.import_result)
@@ -159,7 +184,11 @@ const inputClass =
     <AppLayout>
         <!-- BAGIAN 1: KENAIKAN KELAS & WALI KELAS -->
         <PageHeader title="Kenaikan Kelas & Wali Kelas"
-            subtitle="Pindahkan siswa naik kelas dan ganti wali kelas langsung di sistem. Siswa yang sudah dropout tidak ditampilkan." />
+            subtitle="Pindahkan siswa naik kelas, ganti wali kelas, atau luluskan siswa langsung di sistem. Siswa dropout dan lulus tidak ditampilkan." />
+
+        <p class="text-xs text-gray-500 -mt-3 mb-4">
+            Urutan yang disarankan saat kenaikan tahunan: mulai dari tingkat tertinggi (luluskan atau naikkan XI ke XII, lalu X ke XI), terakhir import siswa baru.
+        </p>
 
         <!-- Filter -->
         <div class="grid md:grid-cols-4 gap-3 mb-4">
@@ -177,12 +206,27 @@ const inputClass =
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-sm">
                 <p class="text-blue-900">
                     <strong>{{ selected.size }}</strong> siswa dipilih
-                    <button v-if="selected.size < students.total" type="button" :disabled="loadingIds"
+                    <button type="button" @click="showSelected = !showSelected" class="ml-2 text-blue-700 underline">
+                        {{ showSelected ? 'Sembunyikan daftar' : 'Lihat daftar' }}
+                    </button>
+                    <button v-if="students.total > students.data.length" type="button" :disabled="loadingIds"
                         @click="selectAllMatching" class="ml-2 text-blue-700 underline disabled:opacity-50">
                         {{ loadingIds ? 'Memuat...' : `Pilih semua ${students.total} siswa hasil filter` }}
                     </button>
                 </p>
-                <button type="button" @click="selected = new Set()" class="text-gray-500 hover:text-gray-700">Hapus pilihan</button>
+                <button type="button" @click="clearSelection" class="text-gray-500 hover:text-gray-700">Hapus semua pilihan</button>
+            </div>
+
+            <div v-if="showSelected" class="mb-3 max-h-40 overflow-y-auto flex flex-wrap gap-2">
+                <span v-for="s in selectedList.slice(0, 200)" :key="s.id"
+                    class="inline-flex items-center gap-1 bg-white border border-blue-200 rounded-full pl-3 pr-1 py-0.5 text-xs text-gray-700">
+                    {{ s.name }}<span class="text-gray-400">{{ s.classroom ? ` · ${s.classroom}` : '' }}</span>
+                    <button type="button" @click="remove(s.id)"
+                        class="w-5 h-5 rounded-full hover:bg-blue-100 text-gray-500 leading-none">&times;</button>
+                </span>
+                <span v-if="selectedList.length > 200" class="text-xs text-gray-500 self-center">
+                    dan {{ selectedList.length - 200 }} siswa lainnya
+                </span>
             </div>
 
             <div class="grid md:grid-cols-3 gap-4">
@@ -200,8 +244,12 @@ const inputClass =
 
             <p v-if="moveError" class="text-sm text-red-600 mt-3">{{ moveError }}</p>
 
-            <div class="mt-4 flex justify-end">
-                <button type="button" :disabled="!canApply" @click="confirming = true"
+            <div class="mt-4 flex flex-wrap justify-end gap-2">
+                <button type="button" @click="confirming = 'graduate'"
+                    class="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 text-sm px-4 py-2 rounded-md">
+                    Luluskan siswa terpilih
+                </button>
+                <button type="button" :disabled="!canApply" @click="openMove"
                     class="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-2 rounded-md">
                     Terapkan
                 </button>
@@ -228,7 +276,7 @@ const inputClass =
                     <tr v-for="s in students.data" :key="s.id" class="border-b border-gray-100 last:border-0"
                         :class="selected.has(s.id) ? 'bg-blue-50/60' : ''">
                         <td class="pl-4 pr-2 py-2">
-                            <input type="checkbox" :checked="selected.has(s.id)" @change="toggle(s.id)" class="rounded border-gray-300" />
+                            <input type="checkbox" :checked="selected.has(s.id)" @change="toggle(s)" class="rounded border-gray-300" />
                         </td>
                         <td class="px-3 py-2">{{ s.nis }}</td>
                         <td class="px-3 py-2">{{ s.name }}</td>
@@ -258,17 +306,47 @@ const inputClass =
             </div>
         </div>
 
-        <ConfirmModal v-if="confirming" title="Terapkan perubahan" confirm-label="Terapkan" tone="primary"
-            :processing="busy" @close="confirming = false" @confirm="apply">
+        <!-- Konfirmasi pindah -->
+        <ConfirmModal v-if="confirming === 'move'" title="Terapkan perubahan" confirm-label="Terapkan" tone="primary"
+            :processing="busy" @close="confirming = null" @confirm="apply">
             <p><strong>{{ selected.size }} siswa</strong> akan diperbarui:</p>
             <ul class="mt-2 list-disc pl-5 space-y-1">
                 <li v-if="targetClass">Kelas menjadi <strong>{{ targetClass.name }}</strong></li>
                 <li v-if="targetClass">Guru BK otomatis menjadi <strong>{{ targetClass.bk ?? '-' }}</strong></li>
                 <li v-if="targetTeacher">Wali kelas menjadi <strong>{{ targetTeacher.name }}</strong></li>
             </ul>
+
+            <div v-if="targetClass?.final && targetClass.active > 0"
+                class="mt-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-amber-900">
+                <p>
+                    <strong>{{ targetClass.name }}</strong> berada di tingkat akhir dan saat ini berisi hingga
+                    <strong>{{ targetClass.active }} siswa</strong>. Siswa lama tersebut akan <strong>diluluskan</strong>
+                    (status menjadi Lulus dan keluar dari kelas).
+                </p>
+                <label class="flex items-start gap-2 mt-2">
+                    <input v-model="graduateExisting" type="checkbox" class="mt-0.5 rounded border-gray-300" />
+                    <span>Luluskan siswa lama di kelas ini. Hilangkan centang jika mereka tinggal kelas dan harus tetap di sini.</span>
+                </label>
+            </div>
+            <div v-else-if="targetClass && targetClass.active > 0"
+                class="mt-4 rounded-md bg-gray-50 border border-gray-200 p-3 text-gray-700">
+                <strong>{{ targetClass.name }}</strong> saat ini berisi <strong>{{ targetClass.active }} siswa</strong>.
+                Mereka tetap berada di kelas ini sehingga jumlah siswanya bertambah. Pastikan mereka memang tinggal kelas,
+                atau sudah dinaikkan lebih dulu.
+            </div>
         </ConfirmModal>
 
-        <!-- BAGIAN 2: IMPORT SIWA BARU -->
+        <!-- Konfirmasi lulus -->
+        <ConfirmModal v-if="confirming === 'graduate'" title="Luluskan siswa" confirm-label="Luluskan"
+            :processing="busy" @close="confirming = null" @confirm="graduate">
+            <p><strong>{{ selected.size }} siswa</strong> akan diluluskan.</p>
+            <p class="mt-2">
+                Status mereka menjadi Lulus, mereka keluar dari kelas dan daftar siswa aktif. Riwayat penanganan tetap
+                tersimpan di laporan. Perubahan ini tidak bisa dibatalkan dari menu ini.
+            </p>
+        </ConfirmModal>
+
+        <!-- BAGIAN 2: IMPORT SISWA BARU -->
         <PageHeader class="mt-14" title="Import Siswa Baru"
             subtitle="Khusus menambahkan siswa baru lewat Excel. Untuk kenaikan kelas, gunakan tabel di atas.">
             <a href="/bulk-update/template"

@@ -14,6 +14,10 @@ class HandlingService
 {
     public function handle(Student $student, User $actor, array $data): Handling
     {
+        if ($student->isGraduated()) {
+            throw $this->fail('Siswa sudah lulus, tidak bisa ditangani lagi.');
+        }
+
         if ($student->isDropout()) {
             throw $this->fail('Siswa sudah dropout, tidak bisa ditangani lagi.');
         }

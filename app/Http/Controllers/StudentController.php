@@ -27,6 +27,7 @@ class StudentController extends Controller
         $isBk = $user->role === 'bk';
 
         $students = Student::query()
+            ->where('status', '!=', StudentStatus::Graduated->value)
             ->with([
                 'classroom.grade:id,name',
                 'classroom.major:id,name',

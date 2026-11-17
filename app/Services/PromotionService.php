@@ -13,6 +13,12 @@ class PromotionService
 {
     public const FILTER_KEYS = ['search', 'classroom_id', 'major_id', 'homeroom_teacher_id'];
 
+    /** Siswa dengan status ini tidak ikut dipindahkan atau diluluskan. */
+    private function inactive(): array
+    {
+        return [StudentStatus::Dropout->value, StudentStatus::Graduated->value];
+    }
+
     /** Ambil filter dari request, dibersihkan menjadi teks biasa. */
     public function filters(Request $request): array
     {
@@ -25,11 +31,11 @@ class PromotionService
             ->all();
     }
 
-    /** Siswa yang bisa dipindahkan (siswa dropout tidak ikut), sesuai filter. */
+    /** Siswa aktif yang bisa dipindahkan, sesuai filter. */
     public function query(array $f): Builder
     {
         return Student::query()
-            ->where('status', '!=', StudentStatus::Dropout->value)
+            ->whereNotIn('status', $this->inactive())
             ->when($f['search'] ?? '', function ($q, $s) {
                 $q->where(fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('nis', 'like', "%$s%"));
             })
@@ -44,18 +50,28 @@ class PromotionService
 
     /**
      * Pindahkan siswa ke kelas lain dan/atau ganti wali kelas.
-     * Guru BK otomatis mengikuti tingkat kelas tujuan. Mengembalikan jumlah siswa yang diproses.
+     * Guru BK otomatis mengikuti tingkat kelas tujuan.
+     * Jika kelas tujuan berada di tingkat akhir dan $graduateExisting aktif,
+     * siswa lama di kelas itu (yang tidak ikut dipilih) diluluskan lebih dulu.
+     *
+     * @return array{moved:int, graduated:int}
      */
-    public function move(array $ids, ?int $classroomId, ?int $teacherId): int
+    public function move(array $ids, ?int $classroomId, ?int $teacherId, bool $graduateExisting = false): array
     {
-        return DB::transaction(function () use ($ids, $classroomId, $teacherId) {
-            $base = Student::whereIn('id', $ids)->where('status', '!=', StudentStatus::Dropout->value);
-            $count = (clone $base)->count();
-
+        return DB::transaction(function () use ($ids, $classroomId, $teacherId, $graduateExisting) {
+            $base = Student::whereIn('id', $ids)->whereNotIn('status', $this->inactive());
+            $moved = (clone $base)->count();
+            $graduated = 0;
             $changes = [];
 
             if ($classroomId) {
                 $classroom = Classroom::with('grade')->findOrFail($classroomId);
+
+                if ($graduateExisting && $classroom->grade->is_final) {
+                    $graduated = $this->graduateQuery(
+                        Student::where('classroom_id', $classroom->id)->whereNotIn('id', $ids)
+                    );
+                }
 
                 // siswa yang benar-benar pindah kelas: pengawasan wali kelas/guru BK kelas lama berakhir
                 (clone $base)
@@ -74,7 +90,29 @@ class PromotionService
 
             $base->update($changes);
 
-            return $count;
+            return ['moved' => $moved, 'graduated' => $graduated];
         });
+    }
+
+    /** Luluskan siswa terpilih. */
+    public function graduate(array $ids): int
+    {
+        return DB::transaction(fn () => $this->graduateQuery(Student::whereIn('id', $ids)));
+    }
+
+    /** Siswa lulus: status Lulus, keluar dari kelas. Riwayat penanganan tetap tersimpan. */
+    private function graduateQuery(Builder $query): int
+    {
+        $query->whereNotIn('status', $this->inactive());
+
+        $count = (clone $query)->count();
+
+        $query->update([
+            'status' => StudentStatus::Graduated->value,
+            'graduated_at' => now(),
+            'classroom_id' => null,
+        ]);
+
+        return $count;
     }
 }

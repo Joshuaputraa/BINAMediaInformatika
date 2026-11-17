@@ -21,13 +21,25 @@ class BulkUpdateController extends Controller
         $students = $promotion->query($filters)
             ->with(['classroom.grade:id,name', 'classroom.major:id,name', 'homeroomTeacher:id,name', 'bk:id,name'])
             ->orderBy('name')
-            ->paginate(50)
+            ->paginate(10)
             ->withQueryString()
             ->through(fn ($s) => [
                 'id' => $s->id,
                 'nis' => $s->nis,
                 'name' => $s->name,
-                'classroom' => $s->classroom?->name,
+                'classrooms' => Classroom::with(['grade.bk:id,name', 'major:id,name'])
+                    ->withCount(['students as active_count' => fn ($q) => $q->whereNotIn('status', ['dropout', 'lulus'])])
+                    ->get()
+                    ->sortBy(fn ($c) => $c->name, SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values()
+                    ->map(fn ($c) => [
+                        'id' => $c->id,
+                        'name' => $c->name,
+                        'major' => $c->major->name,
+                        'bk' => $c->grade->bk?->name,
+                        'final' => (bool) $c->grade->is_final,
+                        'active' => $c->active_count,
+                    ]),
                 'major' => $s->classroom?->major?->name,
                 'teacher' => $s->homeroomTeacher?->name,
                 'bk' => $s->bk?->name,

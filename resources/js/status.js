@@ -9,6 +9,7 @@ export const STATUS = {
     sp2: { label: "SP 2", cls: "bg-red-100 text-red-700" },
     sp3: { label: "SP 3", cls: "bg-red-100 text-red-700" },
     dropout: { label: "Dropout", cls: "bg-gray-900 text-white" },
+    lulus: { label: "Lulus", cls: "bg-green-100 text-green-700" },
 };
 
 export const ACTIONS = [

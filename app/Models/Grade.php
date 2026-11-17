@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Grade extends Model
 {
-    protected $fillable = ['name', 'bk_user_id'];
+    protected $fillable = ['name', 'bk_user_id', 'is_final'];
+    protected $casts = ['is_final' => 'boolean'];
 
     public function bk()
     {

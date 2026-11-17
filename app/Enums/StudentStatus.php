@@ -11,6 +11,7 @@ enum StudentStatus: string
     case Sp2 = 'sp2';
     case Sp3 = 'sp3';
     case Dropout = 'dropout';
+    case Graduated = 'lulus';
 
     public function label(): string
     {
@@ -22,12 +23,13 @@ enum StudentStatus: string
             self::Sp2 => 'SP 2',
             self::Sp3 => 'SP 3',
             self::Dropout => 'Dropout',
+            self::Graduated => 'Lulus',
         };
     }
 
     public function isProblem(): bool
     {
-        return $this !== self::Normal;
+        return ! in_array($this, [self::Normal, self::Graduated], true);
     }
 
     public function isFinal(): bool
@@ -35,9 +37,14 @@ enum StudentStatus: string
         return $this === self::Dropout;
     }
 
-    /** Tindakan yang boleh dipilih (hanya yang valid, tanpa Normal). */
+    public function isGraduated(): bool
+    {
+        return $this === self::Graduated;
+    }
+
+    /** Tindakan penanganan yang boleh dipilih (bukan status normal atau lulus). */
     public static function actions(): array
     {
-        return array_filter(self::cases(), fn ($c) => $c !== self::Normal);
+        return array_filter(self::cases(), fn ($c) => ! in_array($c, [self::Normal, self::Graduated], true));
     }
 }

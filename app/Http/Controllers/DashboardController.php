@@ -35,7 +35,7 @@ class DashboardController extends Controller
         };
 
         $data = [
-            'total' => Student::count(),
+            'total' => Student::where('status', '!=', StudentStatus::Graduated->value)->count(),
             'problem' => Student::problem()->count(),
             'bkCount' => User::where('role', 'bk')->count(),
             'byStatus' => Student::problem()

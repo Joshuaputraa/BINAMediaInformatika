@@ -81,5 +81,6 @@ Route::middleware('auth')->group(function () {
         Route::put('/classrooms/{classroom}', [ClassroomController::class, 'update']);
         Route::delete('/classrooms/{classroom}', [ClassroomController::class, 'destroy']);
         Route::get('/classrooms/{classroom}/students', [ClassroomController::class, 'students']);
+        Route::post('/bulk-update/graduate', [PromotionController::class, 'graduate']);
     });
 });
