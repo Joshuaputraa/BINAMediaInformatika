@@ -183,7 +183,7 @@ const inputClass =
 <template>
     <AppLayout>
         <!-- BAGIAN 1: KENAIKAN KELAS & WALI KELAS -->
-        <PageHeader title="Kenaikan Kelas & Wali Kelas"
+        <PageHeader title="Update Kelas"
             subtitle="Pindahkan siswa naik kelas, ganti wali kelas, atau luluskan siswa langsung di sistem. Siswa dropout dan lulus tidak ditampilkan." />
 
         <p class="text-xs text-gray-500 -mt-3 mb-4">
