@@ -27,19 +27,7 @@ class BulkUpdateController extends Controller
                 'id' => $s->id,
                 'nis' => $s->nis,
                 'name' => $s->name,
-                'classrooms' => Classroom::with(['grade.bk:id,name', 'major:id,name'])
-                    ->withCount(['students as active_count' => fn ($q) => $q->whereNotIn('status', ['dropout', 'lulus'])])
-                    ->get()
-                    ->sortBy(fn ($c) => $c->name, SORT_NATURAL | SORT_FLAG_CASE)
-                    ->values()
-                    ->map(fn ($c) => [
-                        'id' => $c->id,
-                        'name' => $c->name,
-                        'major' => $c->major->name,
-                        'bk' => $c->grade->bk?->name,
-                        'final' => (bool) $c->grade->is_final,
-                        'active' => $c->active_count,
-                    ]),
+                'classroom' => $s->classroom?->name,
                 'major' => $s->classroom?->major?->name,
                 'teacher' => $s->homeroomTeacher?->name,
                 'bk' => $s->bk?->name,
@@ -48,7 +36,9 @@ class BulkUpdateController extends Controller
         return Inertia::render('BulkUpdate/Index', [
             'students' => $students,
             'filters' => $filters,
-            'classrooms' => Classroom::with(['grade.bk:id,name', 'major:id,name'])->get()
+            'classrooms' => Classroom::with(['grade.bk:id,name', 'major:id,name'])
+                ->withCount(['students as active_count' => fn ($q) => $q->whereNotIn('status', ['dropout', 'lulus'])])
+                ->get()
                 ->sortBy(fn ($c) => $c->name, SORT_NATURAL | SORT_FLAG_CASE)
                 ->values()
                 ->map(fn ($c) => [
@@ -56,6 +46,8 @@ class BulkUpdateController extends Controller
                     'name' => $c->name,
                     'major' => $c->major->name,
                     'bk' => $c->grade->bk?->name,
+                    'final' => (bool) $c->grade->is_final,
+                    'active' => $c->active_count,
                 ]),
             'majors' => Major::orderBy('name')->get(['id', 'name']),
             'teachers' => HomeroomTeacher::orderBy('name')->get(['id', 'nip', 'name']),
